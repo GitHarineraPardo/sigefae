@@ -205,6 +205,42 @@ func (h *Handler) AsignarNormasReparto(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"message": "normas asignadas correctamente"})
 }
 
+func (h *Handler) GetActivosFijos(c *gin.Context) {
+	id, err := strconv.ParseUint(c.Param("id"), 10, 64)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "id inválido"})
+		return
+	}
+	items, err := h.service.GetActivosFijos(uint(id))
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+	c.JSON(http.StatusOK, items)
+}
+
+func (h *Handler) AsignarActivosFijos(c *gin.Context) {
+	user := c.MustGet("user").(db.Usuario)
+	id, err := strconv.ParseUint(c.Param("id"), 10, 64)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "id inválido"})
+		return
+	}
+	var dto struct {
+		ActivosFijos []ActivoFijoInputDTO `json:"activos_fijos"`
+	}
+	if err := c.ShouldBindJSON(&dto); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+	isAdmin := user.Rol != nil && user.Rol.Nombre == "Superadministrador"
+	if err := h.service.AsignarActivosFijos(uint(id), dto.ActivosFijos, user.ID, isAdmin); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"message": "activos fijos guardados correctamente"})
+}
+
 // SolicitarRechazo permite a un usuario solicitar que un administrador rechace
 // el documento. Se crean notificaciones para todos los administradores.
 func (h *Handler) SolicitarRechazo(c *gin.Context) {

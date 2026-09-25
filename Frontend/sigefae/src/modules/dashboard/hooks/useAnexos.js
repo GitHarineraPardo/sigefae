@@ -4,7 +4,7 @@ import { API } from "../constants/api";
 export function useAnexos(obtenerToken, puedeGestionarRecurso, esAdmin, activeTab, setSelectedTareaId, setSelectedRadicadoId, saiaModalOpen, saiaRadicado, setSaiaRadicado, saiaAnexoIdx, setSaiaAnexoIdx, saiaPdfUrl, setSaiaPdfUrl) {
   const [generandoPdf, setGenerandoPdf] = useState(false);
 
-  const handleVerAnexo = async (archivoId, nombre) => {
+  const handleVerAnexo = async (archivoId) => {
     const win = window.open("", "_blank");
     try {
       const res = await fetch(`${API}/archivo/${archivoId}/download`, { headers: { Authorization: `Bearer ${obtenerToken()}` } });
@@ -53,17 +53,31 @@ export function useAnexos(obtenerToken, puedeGestionarRecurso, esAdmin, activeTa
         method: "POST", headers: { Authorization: `Bearer ${obtenerToken()}` }, body: formData,
       });
       if (!res.ok) { const err = await res.json(); throw new Error(err.error || "Error subiendo archivo"); }
+      const uploaded = await res.json();
       // 1. Actualizar estado y refetch de inmediato
       if (activeTab === "tareas") { setSelectedTareaId(null); setTimeout(() => setSelectedTareaId(radicadoId), 10); }
       else if (activeTab === "radicados") { setSelectedRadicadoId(null); setTimeout(() => setSelectedRadicadoId(radicadoId), 10); }
 
       if (saiaModalOpen && saiaRadicado?.id === radicadoId) {
+        if (uploaded?.id) {
+          setSaiaRadicado((prev) => {
+            if (!prev) return prev;
+            const archivos = prev.archivos || [];
+            if (archivos.some((archivo) => archivo.id === uploaded.id)) return prev;
+            return { ...prev, archivos: [...archivos, uploaded] };
+          });
+        }
+
         try {
-          const radRes = await fetch(`${API}/documentoradicado/${radicadoId}`, { headers: { Authorization: `Bearer ${obtenerToken()}` } });
+          const radRes = await fetch(`${API}/documentoradicado/${radicadoId}?_t=${Date.now()}`, { headers: { Authorization: `Bearer ${obtenerToken()}` } });
           const updated = await radRes.json();
           if (updated?.id) {
-            setSaiaRadicado(updated);
-            const viewables = (updated.archivos || []).filter(a => {
+            const archivosActualizados = [...(updated.archivos || [])];
+            if (uploaded?.id && !archivosActualizados.some((archivo) => archivo.id === uploaded.id)) {
+              archivosActualizados.push(uploaded);
+            }
+            setSaiaRadicado((prev) => ({ ...updated, archivos: archivosActualizados.length ? archivosActualizados : (prev?.archivos || []) }));
+            const viewables = archivosActualizados.filter(a => {
               const ext = (a.extension || a.nombre?.split('.').pop() || '').toLowerCase();
               return ['pdf', 'png', 'jpg', 'jpeg', 'webp', 'gif'].includes(ext);
             });

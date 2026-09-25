@@ -1,8 +1,7 @@
 import { jsPDF } from "jspdf";
 import autoTable from "jspdf-autotable";
 import { PDFDocument } from "pdf-lib";
-import QRCode from "qrcode";
-
+ 
 /**
  * Genera y descarga un Expediente PDF completo para un documento radicado.
  * 
@@ -34,7 +33,7 @@ export async function generarExpedientePDF(radicado, flujo, trazabilidad, anexos
       
       const proj = n.proyecto || n.norma_reparto?.proyecto || "";
       const rawDesc = n.descripcion || n.norma_reparto?.descripcion || "";
-      const desc = rawDesc.length > 120 ? rawDesc.substring(0, 117) + "..." : rawDesc;
+      const desc = rawDesc.length > 80 ? rawDesc.substring(0, 77) + "..." : rawDesc;
       
       return [
         n.norma_reparto?.nombre || n.nombre || "",
@@ -86,6 +85,7 @@ export async function generarExpedientePDF(radicado, flujo, trazabilidad, anexos
   for (const url of anexosUrls) {
     try {
       const fetchRes = await fetch(url, {
+        cache: 'no-store',
         headers: {
           'Authorization': `Bearer ${localStorage.getItem('token') || ''}`
         }
@@ -112,5 +112,5 @@ export async function generarExpedientePDF(radicado, flujo, trazabilidad, anexos
   document.body.appendChild(a);
   a.click();
   document.body.removeChild(a);
-  URL.revokeObjectURL(downloadUrl);
+  setTimeout(() => URL.revokeObjectURL(downloadUrl), 60000);
 }

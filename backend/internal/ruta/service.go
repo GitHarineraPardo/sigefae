@@ -2,6 +2,7 @@ package ruta
 
 import (
 	"errors"
+	"strings"
 
 	"gorm.io/gorm"
 
@@ -21,14 +22,20 @@ func New(database *gorm.DB) *Service {
 
 func (s *Service) Create(req CreateRequest) (*Response, error) {
 
+	nombre := strings.TrimSpace(req.Nombre)
+	zona := strings.TrimSpace(req.Zona)
+	if zona == "" {
+		zona = "BUCARAMANGA"
+	}
+
 	var existing db.Ruta
 
 	err := s.db.
-		Where("nombre = ? AND area_id = ?", req.Nombre, req.AreaID).
+		Where("LOWER(TRIM(nombre)) = LOWER(?) AND area_id = ? AND LOWER(TRIM(zona)) = LOWER(?)", nombre, req.AreaID, zona).
 		First(&existing).Error
 
 	if err == nil {
-		return nil, errors.New("la ruta ya existe para esta área")
+		return nil, errors.New("ya existe una ruta con ese nombre, área y zona")
 	} else if !errors.Is(err, gorm.ErrRecordNotFound) {
 		return nil, err
 	}
@@ -46,13 +53,8 @@ func (s *Service) Create(req CreateRequest) (*Response, error) {
 		return nil, err
 	}
 
-	zona := req.Zona
-	if zona == "" {
-		zona = "BUCARAMANGA"
-	}
-
 	ruta := db.Ruta{
-		Nombre:  req.Nombre,
+		Nombre:  nombre,
 		Zona:    zona,
 		Version: 1,
 		AreaID:  req.AreaID,
@@ -148,22 +150,33 @@ func (s *Service) Update(id uint, req UpdateRequest) (*Response, error) {
 	}
 
 	// ==========================
-	// Validar nombre repetido
+	// Actualizar zona si se envía
+	// ==========================
+
+	zonaUpdate := strings.TrimSpace(req.Zona)
+	if zonaUpdate == "" {
+		zonaUpdate = ruta.Zona // mantener zona actual si no se cambia
+	}
+	nombreUpdate := strings.TrimSpace(req.Nombre)
+
+	// ==========================
+	// Validar nombre repetido (nombre+area+zona)
 	// ==========================
 
 	var existing db.Ruta
 
 	err = s.db.
 		Where(
-			"nombre = ? AND area_id = ? AND id <> ?",
-			req.Nombre,
+			"LOWER(TRIM(nombre)) = LOWER(?) AND area_id = ? AND LOWER(TRIM(zona)) = LOWER(?) AND id <> ?",
+			nombreUpdate,
 			req.AreaID,
+			zonaUpdate,
 			id,
 		).
 		First(&existing).Error
 
 	if err == nil {
-		return nil, errors.New("la ruta ya existe para esta área")
+		return nil, errors.New("ya existe una ruta con ese nombre, área y zona")
 	} else if !errors.Is(err, gorm.ErrRecordNotFound) {
 		return nil, err
 	}
@@ -173,11 +186,9 @@ func (s *Service) Update(id uint, req UpdateRequest) (*Response, error) {
 	// ==========================
 
 	updatesMap := map[string]any{
-		"nombre":  req.Nombre,
+		"nombre":  nombreUpdate,
 		"area_id": req.AreaID,
-	}
-	if req.Zona != "" {
-		updatesMap["zona"] = req.Zona
+		"zona":    zonaUpdate,
 	}
 
 	err = s.db.

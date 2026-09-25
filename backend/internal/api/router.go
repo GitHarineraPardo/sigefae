@@ -34,6 +34,7 @@ import (
 	"sigefae/internal/pais"
 	"sigefae/internal/paso_ruta"
 	"sigefae/internal/proveedor"
+	"sigefae/internal/proyecto"
 	"sigefae/internal/receptor"
 	"sigefae/internal/registro_aprobacion"
 	"sigefae/internal/regla_monto_ruta"
@@ -232,6 +233,9 @@ func New(database *gorm.DB) *gin.Engine {
 	normaRepartoService := norma_reparto.New(database)
 	normaRepartoHandler := norma_reparto.NewHandler(normaRepartoService)
 
+	proyectoService := proyecto.New(database)
+	proyectoHandler := proyecto.NewHandler(proyectoService)
+
 	salarioMinimoService := salario_minimo.New(database)
 	salarioMinimoHandler := salario_minimo.NewHandler(salarioMinimoService)
 
@@ -288,6 +292,7 @@ func New(database *gorm.DB) *gin.Engine {
 		protected.GET("/proveedor/:id/normas-reparto", proveedorHandler.ListNormasReparto)
 		protected.GET("/normas-reparto", normaRepartoHandler.List)
 		protected.GET("/normas-reparto/:id", normaRepartoHandler.GetByID)
+		protected.GET("/proyectos", proyectoHandler.List)
 		// =========================
 		// Notificacion (usuario logueado)
 		// =========================
@@ -298,6 +303,8 @@ func New(database *gorm.DB) *gin.Engine {
 
 		protected.GET("/documentoradicado/:id/normas-reparto", documentoRadicadoHandler.GetNormasReparto)
 		protected.POST("/documentoradicado/:id/normas-reparto", documentoRadicadoHandler.AsignarNormasReparto)
+		protected.GET("/documentoradicado/:id/activos-fijos", documentoRadicadoHandler.GetActivosFijos)
+		protected.POST("/documentoradicado/:id/activos-fijos", documentoRadicadoHandler.AsignarActivosFijos)
 		protected.POST("/documentoradicado/:id/solicitar-rechazo", documentoRadicadoHandler.SolicitarRechazo)
 		protected.GET("/solicitud-rechazo/mias", documentoRadicadoHandler.ListMySolicitudes)
 		protected.POST("/documentoradicado/:id/solicitar-cambio-norma", documentoRadicadoHandler.SolicitarCambioNormaReparto)
@@ -625,6 +632,11 @@ func New(database *gorm.DB) *gin.Engine {
 			admin.POST("/normas-reparto", normaRepartoHandler.Create)
 			admin.PUT("/normas-reparto/:id", normaRepartoHandler.Update)
 			admin.PATCH("/normas-reparto/:id/activo", normaRepartoHandler.UpdateStatus)
+
+			// Proyectos
+			admin.POST("/proyectos", proyectoHandler.Create)
+			admin.PUT("/proyectos/:id", proyectoHandler.Update)
+			admin.PATCH("/proyectos/:id/activo", proyectoHandler.UpdateStatus)
 
 			// Salario Mínimo
 			admin.POST("/salario-minimo", salarioMinimoHandler.Create)

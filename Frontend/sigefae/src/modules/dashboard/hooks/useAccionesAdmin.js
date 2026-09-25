@@ -1,6 +1,6 @@
 import { API } from "../constants/api";
 
-export function useAccionesAdmin(obtenerToken, setRadicadoDetail) {
+export function useAccionesAdmin(obtenerToken, setRadicadoDetail, setSaiaRadicado) {
   const solicitarRechazo = async (documentoId) => {
     if (!confirm("¿Desea solicitar el rechazo de este documento?")) return;
     const motivo = prompt("Escriba un motivo (opcional):", "");
@@ -27,7 +27,9 @@ export function useAccionesAdmin(obtenerToken, setRadicadoDetail) {
       if (!res.ok) { const err = await res.json(); throw new Error(err.error || "Error al completar"); }
       alert("Radicado marcado como completado");
       const nuevo = await fetch(`${API}/documentoradicado/${radicadoId}`, { headers: { Authorization: `Bearer ${obtenerToken()}` } });
-      setRadicadoDetail(await nuevo.json());
+      const data = await nuevo.json();
+      setRadicadoDetail(data);
+      if (setSaiaRadicado) setSaiaRadicado(data);
     } catch (err) { alert("Error: " + err.message); }
   };
 
@@ -43,7 +45,9 @@ export function useAccionesAdmin(obtenerToken, setRadicadoDetail) {
       if (!res.ok) { const err = await res.json(); throw new Error(err.error || "Error al rechazar"); }
       alert("Radicado marcado como rechazado");
       const nuevo = await fetch(`${API}/documentoradicado/${radicadoId}`, { headers: { Authorization: `Bearer ${obtenerToken()}` } });
-      setRadicadoDetail(await nuevo.json());
+      const data = await nuevo.json();
+      setRadicadoDetail(data);
+      if (setSaiaRadicado) setSaiaRadicado(data);
       if (onSuccess) onSuccess();
     } catch (err) { alert("Error: " + err.message); }
   };

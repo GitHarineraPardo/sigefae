@@ -136,3 +136,12 @@ type TipoFactura struct {
 }
 
 func (TipoFactura) TableName() string { return "tipo_factura" }
+
+type Proyecto struct {
+	ID     uint   `gorm:"primaryKey;column:id" json:"id"`
+	Nombre string `gorm:"column:nombre;type:varchar(255)" json:"nombre"`
+	Zona   string `gorm:"column:zona;type:varchar(50);default:'BUCARAMANGA'" json:"zona"`
+	Activo bool   `gorm:"column:activo;default:true" json:"activo"`
+}
+
+func (Proyecto) TableName() string { return "proyecto" }

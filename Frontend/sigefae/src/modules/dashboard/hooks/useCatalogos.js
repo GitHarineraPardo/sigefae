@@ -83,6 +83,10 @@ const handleCatalogoSubmit = async () => {
 
   // Validaciones del Frontend
   if (!body.nombre && cfg.fields.includes("nombre")) { alert("El nombre es obligatorio"); return; }
+  if (catalogoActivo === "rutas" && !body.zona) { alert("La zona es obligatoria"); return; }
+  if (catalogoActivo === "rutas" && !body.area_id) { alert("El área es obligatoria"); return; }
+  if (catalogoActivo === "normas-reparto" && !body.descripcion) { alert("La descripción es obligatoria"); return; }
+  if (body.descripcion && body.descripcion.length > 100) { alert("La descripción no puede superar 100 caracteres"); return; }
 
   try {
     const res = await fetch(url, {

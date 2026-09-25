@@ -46,6 +46,7 @@ import ModalCrearDocumento from "./modals/ModalCrearDocumento.jsx";
 import ModalCrearProveedor from "./modals/ModalCrearProveedor.jsx";
 import ModalDevolver from "./modals/ModalDevolver.jsx";
 import ModalNormaReparto from "./modals/ModalNormaReparto.jsx";
+import ModalActivoFijo from "./modals/ModalActivoFijo.jsx";
 import RenderFinanzas from "./RenderFinanzas.jsx";
 
 export default function ProcesosLogistica() {
@@ -86,16 +87,16 @@ export default function ProcesosLogistica() {
   const devolucionHook = useDevolucion(obtenerToken, activeTab, tareasHook.setSelectedTareaId, radicadosHook.setSelectedRadicadoId, flujoHook.setTareasFlujo, flujoHook.setHistorialTrazabilidad, flujoHook.setComentarios, tareasHook.setMisTareas, tareasHook.setMisTareasCompletadas, radicadosHook.setRadicados, userId);
 
   // Normas reparto
-  const normasHook = useNormasReparto(obtenerToken, esAdmin, puedeGestionarRecurso, flujoHook.normasRepartoRadicado, flujoHook.setNormasRepartoRadicado);
+  const normasHook = useNormasReparto(obtenerToken, esAdmin, puedeGestionarRecurso, flujoHook.normasRepartoRadicado, flujoHook.setNormasRepartoRadicado, flujoHook.activosFijosRadicado, flujoHook.setActivosFijosRadicado);
 
   // Radicación
   const radicacionHook = useRadicacion(obtenerToken, userId, documentosHook.setDocumentos, setActiveTab, documentosHook.setSelectedDocId, documentosHook.setDocDetail);
 
   // Completar tarea
-  const completarHook = useCompletarTarea(obtenerToken, userId, activeTab, flujoHook.setTareasFlujo, tareasHook.setTareaDetail, radicadosHook.setRadicadoDetail, tareasHook.setMisTareas, tareasHook.setMisTareasCompletadas, radicadosHook.setRadicados);
+  const completarHook = useCompletarTarea(obtenerToken, userId, activeTab, flujoHook.setTareasFlujo, tareasHook.setTareaDetail, radicadosHook.setRadicadoDetail, tareasHook.setMisTareas, tareasHook.setMisTareasCompletadas, radicadosHook.setRadicados, saiaHook.setSaiaRadicado);
 
   // Acciones admin
-  const accionesAdminHook = useAccionesAdmin(obtenerToken, radicadosHook.setRadicadoDetail);
+  const accionesAdminHook = useAccionesAdmin(obtenerToken, radicadosHook.setRadicadoDetail, saiaHook.setSaiaRadicado);
 
   // PDF Expediente
   const pdfExpedienteHook = usePdfExpediente();
@@ -216,7 +217,7 @@ export default function ProcesosLogistica() {
             marcarLeida={notifHook.marcarLeida}
             borrarNotificacion={notifHook.borrarNotificacion}
             recargar={notifHook.recargar}
-            onNavigate={(id) => { setActiveTab("tareas"); tareasHook.setSelectedTareaId(id); radicadosHook.setSelectedRadicadoId(null); }}
+            onNavigate={(id) => { if (esAdmin) { setActiveTab("radicados"); radicadosHook.setSelectedRadicadoId(id); tareasHook.setSelectedTareaId(null); } else { setActiveTab("tareas"); tareasHook.setSelectedTareaId(id); radicadosHook.setSelectedRadicadoId(null); } }}
           />
           <AdminToast esAdmin={esAdmin} />
         </div>
@@ -241,6 +242,7 @@ export default function ProcesosLogistica() {
       <ModalCrearProveedor showCrearProveedorModal={documentosHook.showCrearProveedorModal} setShowCrearProveedorModal={documentosHook.setShowCrearProveedorModal} proveedorForm={documentosHook.proveedorForm} creandoProveedor={documentosHook.creandoProveedor} tiposDocumentoCatalogo={documentosHook.tiposDocumentoCatalogo} handleProveedorFormChange={documentosHook.handleProveedorFormChange} handleCrearProveedorSubmit={documentosHook.handleCrearProveedorSubmit} />
       <ModalDevolver {...devolucionHook} tareasFlujo={flujoHook.tareasFlujo} selectedRadicadoId={radicadosHook.selectedRadicadoId} selectedTareaId={tareasHook.selectedTareaId} />
       <ModalNormaReparto {...normasHook} subtotalRadicado={detalleRadicadoActual?.documento_comercial?.subtotal || 0} />
+      <ModalActivoFijo {...normasHook} subtotalRadicado={detalleRadicadoActual?.documento_comercial?.subtotal || 0} />
 
       {/* SAIA */}
       <RenderSaiaModal
@@ -284,6 +286,9 @@ export default function ProcesosLogistica() {
         setDevolverForm={devolucionHook.setDevolverForm}
         openNormaModal={normasHook.openNormaModal}
         handleEliminarNorma={normasHook.handleEliminarNorma}
+        activosFijosRadicado={flujoHook.activosFijosRadicado}
+        openActivoModal={normasHook.openActivoModal}
+        handleEliminarActivoFijo={normasHook.handleEliminarActivoFijo}
         readOnly={activeTab === "finanzas"}
       />
 

@@ -111,18 +111,26 @@ func (h *Handler) Completar(c *gin.Context) {
 	}
 
 	// ═══════════════════════════════════════════════════════════════
-	// 2. VALIDAR NORMAS DE REPARTO SOLO SI ES LA ÚLTIMA TAREA
+	// 2. VALIDAR NORMAS DE REPARTO Y ACTIVOS FIJOS SOLO SI ES LA ÚLTIMA TAREA
 	// ═══════════════════════════════════════════════════════════════
 	if !haySaltoDirecto && !haySiguiente {
-		var totalPorcentaje float64
+		var totalPorcentajeNormas float64
 		h.db.Model(&db.RadicadoNormaReparto{}).
 			Where("documento_radicado_id = ?", tarea.DocumentoRadicadoID).
 			Select("COALESCE(SUM(porcentaje),0)").
-			Scan(&totalPorcentaje)
+			Scan(&totalPorcentajeNormas)
+
+		var totalPorcentajeActivos float64
+		h.db.Model(&db.RadicadoActivoFijo{}).
+			Where("documento_radicado_id = ?", tarea.DocumentoRadicadoID).
+			Select("COALESCE(SUM(porcentaje),0)").
+			Scan(&totalPorcentajeActivos)
+
+		totalPorcentaje := totalPorcentajeNormas + totalPorcentajeActivos
 
 		if math.Abs(totalPorcentaje-100.0) > 0.01 {
 			c.JSON(http.StatusBadRequest, gin.H{
-				"error": fmt.Sprintf("Las normas de reparto suman %.2f %%. Deben sumar exactamente 100 %% antes de finalizar el proceso.", totalPorcentaje),
+				"error": fmt.Sprintf("Las normas de reparto y activos fijos suman %.2f%%. Deben sumar exactamente 100%% antes de finalizar el proceso.", totalPorcentaje),
 			})
 			return
 		}

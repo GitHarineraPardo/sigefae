@@ -26,10 +26,10 @@ func (Usuario) TableName() string { return "usuario" }
 
 type Ruta struct {
 	ID        uint       `gorm:"primaryKey;column:id" json:"id"`
-	Nombre    string     `gorm:"column:nombre;type:varchar(255)" json:"nombre"`
-	Zona      string     `gorm:"column:zona;type:varchar(100);default:'BUCARAMANGA'" json:"zona"`
+	Nombre    string     `gorm:"column:nombre;type:varchar(255);uniqueIndex:uk_ruta_nombre_area_zona" json:"nombre"`
+	Zona      string     `gorm:"column:zona;type:varchar(100);default:'BUCARAMANGA';uniqueIndex:uk_ruta_nombre_area_zona" json:"zona"`
 	Version   float64    `gorm:"column:version" json:"version"`
-	AreaID    uint       `gorm:"column:area_id;index:idx_ruta_area" json:"area_id"`
+	AreaID    uint       `gorm:"column:area_id;index:idx_ruta_area;uniqueIndex:uk_ruta_nombre_area_zona" json:"area_id"`
 	Area      *Area      `gorm:"foreignKey:AreaID;references:ID" json:"area,omitempty"`
 	Pasos     []PasoRuta `gorm:"foreignKey:RutaID" json:"pasos,omitempty"`
 	Activo    bool       `gorm:"column:activo;default:true" json:"activo"`

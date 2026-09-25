@@ -3,7 +3,7 @@ import { formatCurrency } from "../../helpers/formatters";
 export default function ModalNormaReparto({
   showNormaModal, setShowNormaModal, normaEditandoId, normaFormDetalle, setNormaFormDetalle,
   normaModalRadicadoId, normaFiltroSede, setNormaFiltroSede, normaFiltroArea, setNormaFiltroArea,
-  normasRepartoCatalogo, sedesDisponibles, areasDisponibles, handleGuardarNormaDetalle,
+  normasRepartoCatalogo, proyectosDisponibles, sedesDisponibles, areasDisponibles, handleGuardarNormaDetalle,
   subtotalRadicado
 }) {
   if (!showNormaModal) return null;
@@ -74,22 +74,28 @@ export default function ModalNormaReparto({
               <label>Proyecto <span className="required">*</span></label>
               <input
                 type="text"
+                list="proyectos-list"
                 className="doc-input"
                 style={{ borderColor: !normaFormDetalle.proyecto?.trim() ? "#ef4444" : undefined }}
                 value={normaFormDetalle.proyecto || ""}
                 onChange={(e) => setNormaFormDetalle(prev => ({ ...prev, proyecto: e.target.value }))}
                 placeholder="Nombre del proyecto (requerido)..."
               />
+              <datalist id="proyectos-list">
+                {proyectosDisponibles.map(p => (
+                  <option key={p.id} value={p.nombre} />
+                ))}
+              </datalist>
             </div>
             <div className="modal-field" style={{ flex: 2 }}>
-              <label>Descripción <small style={{ float: "right", color: (normaFormDetalle.descripcion || "").length >= 300 ? "#ef4444" : "#6b7280" }}>{(normaFormDetalle.descripcion || "").length}/300</small></label>
+              <label>Descripción <small style={{ float: "right", color: (normaFormDetalle.descripcion || "").length >= 100 ? "#ef4444" : "#6b7280" }}>{(normaFormDetalle.descripcion || "").length}/100</small></label>
               <input
                 type="text"
                 className="doc-input"
-                maxLength={300}
+                maxLength={100}
                 value={normaFormDetalle.descripcion || ""}
                 onChange={(e) => setNormaFormDetalle(prev => ({ ...prev, descripcion: e.target.value }))}
-                placeholder="Descripción (máx 300 caracteres)..."
+                placeholder="Descripción (máx 100 caracteres)..."
               />
             </div>
           </div>

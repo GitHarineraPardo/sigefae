@@ -148,7 +148,20 @@ func (s *Service) Create(dto CreateDTO, usuarioID uint) (*db.DocumentoRadicado, 
 			fmt.Printf("[RADICADO %s] info: documento comercial %d no tiene correo_id\n", radicado.NumeroRadicado, dto.DocumentoComercialID)
 		}
 
-		// ── 11. Crear normas de reparto (priorizar DTO, si no, buscar en proveedor) ──
+		// ── 11. Validar total porcentajes normas + activos ──
+		totalPctNormas := 0.0
+		for _, n := range dto.NormasReparto {
+			totalPctNormas += n.Porcentaje
+		}
+		totalPctActivos := 0.0
+		for _, a := range dto.ActivosFijos {
+			totalPctActivos += a.Porcentaje
+		}
+		if totalPctNormas+totalPctActivos > 100.01 {
+			return fmt.Errorf("la suma de normas de reparto (%.2f%%) y activos fijos (%.2f%%) no puede superar el 100%%", totalPctNormas, totalPctActivos)
+		}
+
+		// ── 12. Crear normas de reparto (priorizar DTO, si no, buscar en proveedor) ──
 		if len(dto.NormasReparto) > 0 {
 			for _, n := range dto.NormasReparto {
 				nr := db.RadicadoNormaReparto{
@@ -179,6 +192,24 @@ func (s *Service) Create(dto CreateDTO, usuarioID uint) (*db.DocumentoRadicado, 
 							return err
 						}
 					}
+				}
+			}
+		}
+
+		// ── 13. Crear activos fijos si vienen en DTO ──
+		if len(dto.ActivosFijos) > 0 {
+			for _, a := range dto.ActivosFijos {
+				af := db.RadicadoActivoFijo{
+					DocumentoRadicadoID: radicado.ID,
+					Nombre:              a.Nombre,
+					Sucursal:            a.Sucursal,
+					Proyecto:            a.Proyecto,
+					Porcentaje:          a.Porcentaje,
+					Descripcion:         a.Descripcion,
+					CreadoPorID:         usuarioID,
+				}
+				if err := tx.Create(&af).Error; err != nil {
+					return err
 				}
 			}
 		}
@@ -253,6 +284,7 @@ func (s *Service) GetByID(id uint) (*db.DocumentoRadicado, error) {
 		Preload("PasoActual").
 		Preload("UsuarioActual").
 		Preload("Archivos").
+		Preload("Archivos.CreadoPor").
 		Preload("Qr").
 		Preload("NormasReparto").
 		Preload("NormasReparto.NormaReparto").
@@ -705,6 +737,27 @@ func (s *Service) AsignarNormasReparto(radicadoID uint, dtos []NormaRepartoInput
 			return err
 		}
 
+		// Calcular total normas DTO
+		totalNormas := 0.0
+		for _, d := range dtos {
+			totalNormas += d.Porcentaje
+		}
+
+		// Calcular total activos fijos existentes
+		var activosExistentes []db.RadicadoActivoFijo
+		if err := tx.Where("documento_radicado_id = ?", radicadoID).Find(&activosExistentes).Error; err != nil {
+			return err
+		}
+		totalActivos := 0.0
+		for _, a := range activosExistentes {
+			totalActivos += a.Porcentaje
+		}
+
+		gran_total := totalNormas + totalActivos
+		if gran_total > 100.01 {
+			return fmt.Errorf("la suma de normas de reparto (%.2f%%) + activos fijos (%.2f%%) no puede superar el 100%%, actualmente sumaría %.2f%%", totalNormas, totalActivos, gran_total)
+		}
+
 		porNorma := map[uint]db.RadicadoNormaReparto{}
 		for _, e := range existentes {
 			porNorma[e.NormaRepartoID] = e
@@ -773,7 +826,6 @@ func (s *Service) AsignarNormasReparto(radicadoID uint, dtos []NormaRepartoInput
 	})
 }
 
-
 // ─────────────────────────────────────────────────────────────
 // MemorizarNormasProveedorRuta
 // ─────────────────────────────────────────────────────────────
@@ -812,3 +864,119 @@ func (s *Service) MemorizarNormasProveedorRuta(radicadoID uint) error {
 		return nil
 	})
 }
+
+// ─────────────────────────────────────────────────────────────
+// Activos Fijos
+// ─────────────────────────────────────────────────────────────
+
+type ActivoFijoInputDTO struct {
+	ID          uint    `json:"id"`
+	Nombre      string  `json:"nombre" binding:"required"`
+	Sucursal    string  `json:"sucursal" binding:"required"`
+	Proyecto    string  `json:"proyecto"`
+	Porcentaje  float64 `json:"porcentaje" binding:"required"`
+	Descripcion string  `json:"descripcion"`
+}
+
+func (s *Service) GetActivosFijos(radicadoID uint) ([]db.RadicadoActivoFijo, error) {
+	var items []db.RadicadoActivoFijo
+	if err := s.db.Where("documento_radicado_id = ?", radicadoID).
+		Preload("CreadoPor").
+		Find(&items).Error; err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+func (s *Service) AsignarActivosFijos(radicadoID uint, dtos []ActivoFijoInputDTO, usuarioID uint, isAdmin bool) error {
+	return s.db.Transaction(func(tx *gorm.DB) error {
+		// Calcular total normas de reparto para este radicado
+		var normas []db.RadicadoNormaReparto
+		if err := tx.Where("documento_radicado_id = ?", radicadoID).Find(&normas).Error; err != nil {
+			return err
+		}
+		totalNormas := 0.0
+		for _, n := range normas {
+			totalNormas += n.Porcentaje
+		}
+
+		// Calcular total activos fijos del DTO
+		totalActivos := 0.0
+		for _, d := range dtos {
+			totalActivos += d.Porcentaje
+		}
+
+		// Validar que la suma total no supere el 100%
+		gran_total := totalNormas + totalActivos
+		if gran_total > 100.01 {
+			return fmt.Errorf("la suma de normas de reparto (%.2f%%) + activos fijos (%.2f%%) no puede superar el 100%%, actualmente sumaría %.2f%%", totalNormas, totalActivos, gran_total)
+		}
+
+		// Obtener existentes
+		var existentes []db.RadicadoActivoFijo
+		if err := tx.Where("documento_radicado_id = ?", radicadoID).Find(&existentes).Error; err != nil {
+			return err
+		}
+
+		// Mapa por ID para updates
+		porID := map[uint]db.RadicadoActivoFijo{}
+		for _, e := range existentes {
+			porID[e.ID] = e
+		}
+
+		// IDs del DTO para saber cuáles eliminar
+		dtoIDs := map[uint]bool{}
+		for _, d := range dtos {
+			if d.ID > 0 {
+				dtoIDs[d.ID] = true
+			}
+		}
+
+		// Crear o actualizar
+		for _, d := range dtos {
+			if d.ID > 0 {
+				existente, ok := porID[d.ID]
+				if ok {
+					if isAdmin || existente.CreadoPorID == 0 || existente.CreadoPorID == usuarioID {
+						existente.Nombre = d.Nombre
+						existente.Sucursal = d.Sucursal
+						existente.Proyecto = d.Proyecto
+						existente.Porcentaje = d.Porcentaje
+						existente.Descripcion = d.Descripcion
+						if err := tx.Save(&existente).Error; err != nil {
+							return err
+						}
+					}
+					continue
+				}
+			}
+			// Crear nuevo
+			af := db.RadicadoActivoFijo{
+				DocumentoRadicadoID: radicadoID,
+				Nombre:              d.Nombre,
+				Sucursal:            d.Sucursal,
+				Proyecto:            d.Proyecto,
+				Porcentaje:          d.Porcentaje,
+				Descripcion:         d.Descripcion,
+				CreadoPorID:         usuarioID,
+			}
+			if err := tx.Create(&af).Error; err != nil {
+				return err
+			}
+		}
+
+		// Eliminar los que ya no están en el DTO
+		for _, e := range existentes {
+			if !dtoIDs[e.ID] {
+				if isAdmin || e.CreadoPorID == 0 || e.CreadoPorID == usuarioID {
+					if err := tx.Delete(&e).Error; err != nil {
+						return err
+					}
+				}
+			}
+		}
+
+		return nil
+	})
+}
+

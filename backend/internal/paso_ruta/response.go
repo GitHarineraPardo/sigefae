@@ -11,6 +11,8 @@ type Response struct {
 
 	RutaID uint   `json:"ruta_id"`
 	Ruta   string `json:"ruta"`
+	Zona   string `json:"zona"`
+	Area   string `json:"area"`
 
 	Orden  int    `json:"orden"`
 	Nombre string `json:"nombre"`
@@ -28,9 +30,15 @@ func toResponse(p db.PasoRuta) Response {
 
 	ruta := ""
 	usuario := ""
+	zona := ""
+	area := ""
 
 	if p.Ruta != nil {
 		ruta = p.Ruta.Nombre
+		zona = p.Ruta.Zona
+		if p.Ruta.Area != nil {
+			area = p.Ruta.Area.Nombre
+		}
 	}
 
 	if p.Usuario != nil {
@@ -42,6 +50,8 @@ func toResponse(p db.PasoRuta) Response {
 
 		RutaID: p.RutaID,
 		Ruta:   ruta,
+		Zona:   zona,
+		Area:   area,
 
 		Orden:  p.Orden,
 		Nombre: p.Nombre,

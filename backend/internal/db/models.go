@@ -14,7 +14,7 @@ func BaseModels() []any {
 		&DetalleDocumentoComercial{}, &TipoFactura{}, &TipoPago{},
 		&MetodoPago{}, &TipoRadicacion{}, &CodigoQr{},
 		&EstadoDocumentoRadicado{}, &EstadoTarea{},
-		&NormaReparto{}, &SalarioMinimo{},
+		&NormaReparto{}, &SalarioMinimo{}, &Proyecto{},
 	}
 }
 
@@ -30,5 +30,6 @@ func CircularModels() []any {
 		&Notificacion{}, &ReglaMontoRuta{},
 		&RadicadoNormaReparto{},
 		&ProveedorNormaReparto{},
+		&RadicadoActivoFijo{},
 	}
 }

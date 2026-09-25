@@ -2,7 +2,7 @@ import { useState } from "react";
 import { API } from "../constants/api";
 import { isFinalState } from "../helpers/formatters";
 
-export function useCompletarTarea(obtenerToken, userId, activeTab, setTareasFlujo, setTareaDetail, setRadicadoDetail, setMisTareas, setMisTareasCompletadas, setRadicados) {
+export function useCompletarTarea(obtenerToken, userId, activeTab, setTareasFlujo, setTareaDetail, setRadicadoDetail, setMisTareas, setMisTareasCompletadas, setRadicados, setSaiaRadicado) {
   const [completandoTarea, setCompletandoTarea] = useState(false);
 
   const handleCompletarTarea = async (tareaId, radicadoId) => {
@@ -23,7 +23,11 @@ export function useCompletarTarea(obtenerToken, userId, activeTab, setTareasFluj
 
       const detalleRes = await fetch(`${API}/documentoradicado/${radicadoId}`, { headers: { Authorization: `Bearer ${obtenerToken()}` } });
       const detalleData = await detalleRes.json();
-      if (detalleData?.id) { if (activeTab === "tareas") setTareaDetail(detalleData); if (activeTab === "radicados") setRadicadoDetail(detalleData); }
+      if (detalleData?.id) {
+        if (activeTab === "tareas") setTareaDetail(detalleData);
+        if (activeTab === "radicados") setRadicadoDetail(detalleData);
+        if (setSaiaRadicado) setSaiaRadicado(detalleData);
+      }
 
       const listaRes = await fetch(`${API}/documentoradicado`, { headers: { Authorization: `Bearer ${obtenerToken()}` } });
       const listaData = await listaRes.json();

@@ -107,5 +107,12 @@ func Seed(db *gorm.DB) error {
 		return err
 	}
 
+	// ==========================
+	// Proyectos
+	// ==========================
+	if err := SeedProyectos(db); err != nil {
+		return err
+	}
+
 	return nil
 }

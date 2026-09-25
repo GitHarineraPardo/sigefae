@@ -6,6 +6,7 @@ type CreateDTO struct {
 	RutaID               uint                   `json:"ruta_id" binding:"required"`
 	MetodoPagoID         uint                   `json:"metodo_pago_id" binding:"required"`
 	NormasReparto        []NormaRepartoInputDTO `json:"normas_reparto"`
+	ActivosFijos         []ActivoFijoInputDTO   `json:"activos_fijos"`
 	NumeroRadicado       string                 `json:"numero_radicado"` // opcional, si vacío se autogenera
 	EsMalambo            bool                   `json:"es_malambo"`
 }

@@ -5,6 +5,7 @@ export function useFlujoYTrazabilidad(obtenerToken, selectedRadicadoId, selected
   const [tareasFlujo, setTareasFlujo] = useState([]);
   const [historialTrazabilidad, setHistorialTrazabilidad] = useState([]);
   const [normasRepartoRadicado, setNormasRepartoRadicado] = useState([]);
+  const [activosFijosRadicado, setActivosFijosRadicado] = useState([]);
   const [comentarios, setComentarios] = useState([]);
   const [nuevoComentario, setNuevoComentario] = useState("");
   const [enviandoComentario, setEnviandoComentario] = useState(false);
@@ -13,7 +14,7 @@ export function useFlujoYTrazabilidad(obtenerToken, selectedRadicadoId, selected
 
   useEffect(() => {
     if (!radicadoId) {
-      setTareasFlujo([]); setHistorialTrazabilidad([]); setNormasRepartoRadicado([]); setComentarios([]); return;
+      setTareasFlujo([]); setHistorialTrazabilidad([]); setNormasRepartoRadicado([]); setActivosFijosRadicado([]); setComentarios([]); return;
     }
     const headers = { Authorization: `Bearer ${obtenerToken()}` };
     const t = new Date().getTime();
@@ -23,7 +24,9 @@ export function useFlujoYTrazabilidad(obtenerToken, selectedRadicadoId, selected
       .then(r => r.json()).then(data => setHistorialTrazabilidad(Array.isArray(data) ? data : [])).catch(err => console.error(err));
     fetch(`${API}/documentoradicado/${radicadoId}/normas-reparto?_t=${t}`, { headers })
       .then(r => r.json()).then(data => setNormasRepartoRadicado(Array.isArray(data) ? data : [])).catch(() => setNormasRepartoRadicado([]));
-    
+    fetch(`${API}/documentoradicado/${radicadoId}/activos-fijos?_t=${t}`, { headers })
+      .then(r => r.json()).then(data => setActivosFijosRadicado(Array.isArray(data) ? data : [])).catch(() => setActivosFijosRadicado([]));
+
     let cancelled = false;
     setComentarios([]);
     fetch(`${API}/comentario?documento_radicado_id=${radicadoId}&_t=${t}`, { headers })
@@ -62,6 +65,12 @@ export function useFlujoYTrazabilidad(obtenerToken, selectedRadicadoId, selected
     setNormasRepartoRadicado(Array.isArray(nrData) ? nrData : []);
   };
 
+  const recargarActivosFijos = async (radicadoId) => {
+    const res = await fetch(`${API}/documentoradicado/${radicadoId}/activos-fijos?_t=${new Date().getTime()}`, { headers: { Authorization: `Bearer ${obtenerToken()}` } });
+    const data = await res.json();
+    setActivosFijosRadicado(Array.isArray(data) ? data : []);
+  };
+
   const recargarFlujo = async (radicadoId) => {
     const flujoRes = await fetch(`${API}/documentoradicado/${radicadoId}/tareas?_t=${new Date().getTime()}`, { headers: { Authorization: `Bearer ${obtenerToken()}` } });
     const flujoData = await flujoRes.json();
@@ -77,7 +86,8 @@ export function useFlujoYTrazabilidad(obtenerToken, selectedRadicadoId, selected
   return {
     tareasFlujo, setTareasFlujo, historialTrazabilidad, setHistorialTrazabilidad,
     normasRepartoRadicado, setNormasRepartoRadicado,
+    activosFijosRadicado, setActivosFijosRadicado,
     comentarios, setComentarios, nuevoComentario, setNuevoComentario, enviandoComentario,
-    handleEnviarComentario, recargarComentarios, recargarNormas, recargarFlujo, recargarTrazabilidad
+    handleEnviarComentario, recargarComentarios, recargarNormas, recargarActivosFijos, recargarFlujo, recargarTrazabilidad
   };
 }

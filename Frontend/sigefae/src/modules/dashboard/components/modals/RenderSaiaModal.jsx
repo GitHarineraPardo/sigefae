@@ -17,7 +17,7 @@ export default function RenderSaiaModal({
   esAdmin, esUsuario, userId, userRol,
   setPdfEditor, activeTab, setSelectedTareaId, setSelectedRadicadoId,
   setShowDevolverModal, setDevolverForm,
-  openNormaModal, handleEliminarNorma, readOnly: externalReadOnly
+  openNormaModal, handleEliminarNorma, activosFijosRadicado, openActivoModal, handleEliminarActivoFijo, readOnly: externalReadOnly
 }) {
   if (!saiaModalOpen || !saiaRadicado) return null;
   const archivosPdf = (saiaRadicado.archivos || []).filter(a => {
@@ -191,7 +191,7 @@ export default function RenderSaiaModal({
               )}
               {saiaActiveTab === 'flujo' && <RenderFlujoAprobacion tareasFlujo={tareasFlujo} />}
               {saiaActiveTab === 'trazabilidad' && <RenderTrazabilidad historialTrazabilidad={historialTrazabilidad} />}
-              {saiaActiveTab === 'normas' && <RenderNormasReparto normasRepartoRadicado={normasRepartoRadicado} radicadoId={saiaRadicado.id} readOnly={readOnly} esAdmin={esAdmin} puedeGestionarRecurso={puedeGestionarRecurso} openNormaModal={openNormaModal} handleEliminarNorma={handleEliminarNorma} />}
+              {saiaActiveTab === 'normas' && <RenderNormasReparto normasRepartoRadicado={normasRepartoRadicado} activosFijosRadicado={activosFijosRadicado} radicadoId={saiaRadicado.id} readOnly={readOnly} esAdmin={esAdmin} puedeGestionarRecurso={puedeGestionarRecurso} openNormaModal={openNormaModal} handleEliminarNorma={handleEliminarNorma} openActivoModal={openActivoModal} handleEliminarActivoFijo={handleEliminarActivoFijo} subtotalRadicado={saiaRadicado.documento_comercial?.subtotal || saiaRadicado.documento_comercial?.total || 0} />}
               {saiaActiveTab === 'comentarios' && <div className="saia-comments-wrapper"><RenderComentarios comentarios={comentarios} nuevoComentario={nuevoComentario} setNuevoComentario={setNuevoComentario} enviandoComentario={enviandoComentario} handleEnviarComentario={handleEnviarComentario} radicadoId={saiaRadicado.id} userId={userId} readOnly={readOnly} /></div>}
               {saiaActiveTab === 'acciones' && (
                 <div className="doc-section" style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>

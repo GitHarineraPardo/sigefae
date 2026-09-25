@@ -93,6 +93,7 @@ func (s *Service) Create(req CreateRequest) (*Response, error) {
 
 	if err := s.db.
 		Preload("Ruta").
+		Preload("Ruta.Area").
 		Preload("Usuario").
 		First(&paso, paso.ID).Error; err != nil {
 
@@ -110,6 +111,7 @@ func (s *Service) List() ([]Response, error) {
 
 	if err := s.db.
 		Preload("Ruta").
+		Preload("Ruta.Area").
 		Preload("Usuario").
 		Order("ruta_id ASC").
 		Order("orden ASC").
@@ -237,6 +239,7 @@ func (s *Service) Update(id uint, req UpdateRequest) (*Response, error) {
 
 	if err := s.db.
 		Preload("Ruta").
+		Preload("Ruta.Area").
 		Preload("Usuario").
 		First(&paso, paso.ID).Error; err != nil {
 

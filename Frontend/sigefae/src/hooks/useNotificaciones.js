@@ -20,8 +20,9 @@ export function useNotificaciones() {
   const cargar = useCallback(async () => {
     setLoading(true);
     try {
-      const res = await fetch(`${API}/notificacion/mias`, {
+      const res = await fetch(`${API}/notificacion/mias?_t=${new Date().getTime()}`, {
         headers: { Authorization: `Bearer ${obtenerToken()}` },
+        cache: 'no-store' // Evitar caché del navegador
       });
       const data = await res.json();
       if (Array.isArray(data)) {
