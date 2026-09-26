@@ -8,8 +8,11 @@ require (
 	github.com/joho/godotenv v1.5.1
 	golang.org/x/crypto v0.54.0
 	gorm.io/driver/mysql v1.6.0
+	gorm.io/driver/sqlite v1.6.0
 	gorm.io/gorm v1.31.2
 )
+
+require github.com/mattn/go-sqlite3 v1.14.22 // indirect
 
 require (
 	filippo.io/edwards25519 v1.1.0 // indirect

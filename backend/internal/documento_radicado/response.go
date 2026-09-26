@@ -57,7 +57,9 @@ type Response struct {
 	Ruta                   *RutaResponse                    `json:"ruta,omitempty"`
 	NumeroRadicado         string                           `json:"numero_radicado"`
 	FechaRadicacion        time.Time                        `json:"fecha_radicacion"`
-	UsuarioActualID        uint                             `json:"usuario_actual_id"`
+	UsuarioActualID        *uint                            `json:"usuario_actual_id"`
+	CargoActualID          *uint                            `json:"cargo_actual_id,omitempty"`
+	CargoActual            string                           `json:"cargo_actual"`
 	UsuarioActual          *UsuarioResponse                 `json:"usuario_actual,omitempty"`
 	EstadoPosesion         string                           `json:"estado_posesion"`
 	PasoActualID           *uint                            `json:"paso_actual_id,omitempty"`
@@ -78,6 +80,10 @@ type Response struct {
 
 func toResponse(documento db.DocumentoRadicado) Response {
 
+	cargoActual := ""
+	if documento.CargoActual != nil {
+		cargoActual = documento.CargoActual.Nombre
+	}
 	response := Response{
 		ID:                     documento.ID,
 		DocumentoComercialID:   documento.DocumentoComercialID,
@@ -86,6 +92,8 @@ func toResponse(documento db.DocumentoRadicado) Response {
 		NumeroRadicado:         documento.NumeroRadicado,
 		FechaRadicacion:        documento.FechaRadicacion,
 		UsuarioActualID:        documento.UsuarioActualID,
+		CargoActualID:          documento.CargoActualID,
+		CargoActual:            cargoActual,
 		EstadoPosesion:         documento.EstadoPosesion,
 		PasoActualID:           documento.PasoActualID,
 		PasoPendienteRetornoID: documento.PasoPendienteRetornoID,

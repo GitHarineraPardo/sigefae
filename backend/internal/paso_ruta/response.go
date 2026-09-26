@@ -17,8 +17,10 @@ type Response struct {
 	Orden  int    `json:"orden"`
 	Nombre string `json:"nombre"`
 
-	UsuarioID uint   `json:"usuario_id"`
+	UsuarioID *uint  `json:"usuario_id"`
 	Usuario   string `json:"usuario"`
+	CargoID   *uint  `json:"cargo_id,omitempty"`
+	Cargo     string `json:"cargo"`
 
 	Activo bool `json:"activo"`
 
@@ -44,6 +46,10 @@ func toResponse(p db.PasoRuta) Response {
 	if p.Usuario != nil {
 		usuario = p.Usuario.Nombre
 	}
+	cargo := ""
+	if p.Cargo != nil {
+		cargo = p.Cargo.Nombre
+	}
 
 	return Response{
 		ID: p.ID,
@@ -58,6 +64,8 @@ func toResponse(p db.PasoRuta) Response {
 
 		UsuarioID: p.UsuarioID,
 		Usuario:   usuario,
+		CargoID:   p.CargoID,
+		Cargo:     cargo,
 
 		Activo: p.Activo,
 

@@ -24,6 +24,7 @@ func (s *Service) Login(email, password string) (*db.Usuario, string, error) {
 
 	err := s.db.
 		Preload("Rol").
+		Preload("Cargo").
 		Where("email = ?", email).
 		First(&user).Error
 
@@ -61,6 +62,7 @@ func (s *Service) SSOLogin(identifier string) (*db.Usuario, string, error) {
 
 	err := s.db.
 		Preload("Rol").
+		Preload("Cargo").
 		Where("email = ? OR nombre = ?", identifier, identifier).
 		First(&user).Error
 

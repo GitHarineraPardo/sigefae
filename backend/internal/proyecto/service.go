@@ -66,3 +66,8 @@ func (s *Service) mapToResponse(model db.Proyecto) Response {
 		Activo: model.Activo,
 	}
 }
+
+func (s *Service) Delete(id uint) error {
+	return s.db.Delete(&db.Proyecto{}, id).Error
+}
+

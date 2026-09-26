@@ -63,9 +63,9 @@ func checkVencimientos(database *gorm.DB) error {
 				rad.NumeroRadicado, vencimiento.Format("2006-01-02"))
 
 			// 1. Notificar a la persona que lo tiene actualmente
-			if rad.UsuarioActualID != 0 {
+			if rad.UsuarioActualID != nil {
 				database.Create(&db.Notificacion{
-					UsuarioID:           rad.UsuarioActualID,
+					UsuarioID:           *rad.UsuarioActualID,
 					DocumentoRadicadoID: &rad.ID,
 					Mensaje:             mensaje,
 					Estado:              "Pendiente",
@@ -78,7 +78,7 @@ func checkVencimientos(database *gorm.DB) error {
 			var admins []db.Usuario
 			database.Joins("JOIN rols ON rols.id = usuarios.id_rol").Where("rols.nombre = ?", "Administrador").Find(&admins)
 			for _, admin := range admins {
-				if admin.ID == rad.UsuarioActualID {
+				if rad.UsuarioActualID != nil && admin.ID == *rad.UsuarioActualID {
 					continue
 				}
 				database.Create(&db.Notificacion{

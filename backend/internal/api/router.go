@@ -12,6 +12,7 @@ import (
 	"sigefae/internal/archivo_origen"
 	"sigefae/internal/area"
 	"sigefae/internal/auth"
+	"sigefae/internal/cargo"
 	"sigefae/internal/categoria_proveedor"
 	"sigefae/internal/codigo_qr"
 	"sigefae/internal/comentario"
@@ -239,6 +240,9 @@ func New(database *gorm.DB) *gin.Engine {
 	salarioMinimoService := salario_minimo.New(database)
 	salarioMinimoHandler := salario_minimo.NewHandler(salarioMinimoService)
 
+	cargoService := cargo.New(database)
+	cargoHandler := cargo.NewHandler(cargoService)
+
 	api := router.Group("/api")
 	{
 		api.POST("/auth/login", authHandler.Login)
@@ -289,10 +293,12 @@ func New(database *gorm.DB) *gin.Engine {
 
 		protected.GET("/rutas", rutaHandler.List)
 		protected.GET("/areas", areaHandler.List) // lectura para todos (Contabilidad necesita para trazabilidad por área)
+		protected.GET("/cargos", cargoHandler.ListActivos)
 		protected.GET("/proveedor/:id/normas-reparto", proveedorHandler.ListNormasReparto)
 		protected.GET("/normas-reparto", normaRepartoHandler.List)
 		protected.GET("/normas-reparto/:id", normaRepartoHandler.GetByID)
 		protected.GET("/proyectos", proyectoHandler.List)
+		protected.GET("/cargos/activos", cargoHandler.ListActivos)
 		// =========================
 		// Notificacion (usuario logueado)
 		// =========================
@@ -319,12 +325,17 @@ func New(database *gorm.DB) *gin.Engine {
 
 		protected.GET("/me", func(c *gin.Context) {
 			user := c.MustGet("user").(db.Usuario)
+			cargoNombre := ""
+			if user.Cargo != nil {
+				cargoNombre = user.Cargo.Nombre
+			}
 			c.JSON(http.StatusOK, gin.H{
-				"id":     user.ID,
-				"nombre": user.Nombre,
-				"email":  user.Email,
-				"cargo":  user.Cargo,
-				"rol":    user.Rol.Nombre,
+				"id":       user.ID,
+				"nombre":   user.Nombre,
+				"email":    user.Email,
+				"cargo_id": user.CargoID,
+				"cargo":    cargoNombre,
+				"rol":      user.Rol.Nombre,
 			})
 		})
 
@@ -346,6 +357,11 @@ func New(database *gorm.DB) *gin.Engine {
 			// =========================
 			admin.POST("/usuarios", userHandler.Create)
 			admin.GET("/usuarios", userHandler.List)
+			admin.GET("/cargos/todos", cargoHandler.List)
+			admin.POST("/cargos", cargoHandler.Create)
+			admin.PATCH("/cargos/:id", cargoHandler.Update)
+			admin.PATCH("/cargos/:id/activo", cargoHandler.UpdateStatus)
+			admin.DELETE("/cargos/:id", cargoHandler.Delete)
 			admin.GET("/usuarios/:id", userHandler.GetByID)
 			admin.PUT("/usuarios/:id", userHandler.Update)
 			admin.PATCH("/usuarios/:id/activo", userHandler.UpdateStatus)
@@ -366,6 +382,7 @@ func New(database *gorm.DB) *gin.Engine {
 			admin.GET("/tipos-pago", tipoPagoHandler.List)
 			admin.PATCH("/tipos-pago/:id", tipoPagoHandler.Update)
 			admin.PATCH("/tipos-pago/:id/activo", tipoPagoHandler.UpdateStatus)
+			admin.DELETE("/tipos-pago/:id", tipoPagoHandler.Delete)
 
 			// =========================
 			// Métodos de Pago
@@ -374,6 +391,7 @@ func New(database *gorm.DB) *gin.Engine {
 			admin.GET("/metodos-pago", metodoPagoHandler.List)
 			admin.PATCH("/metodos-pago/:id", metodoPagoHandler.Update)
 			admin.PATCH("/metodos-pago/:id/activo", metodoPagoHandler.UpdateStatus)
+			admin.DELETE("/metodos-pago/:id", metodoPagoHandler.Delete)
 
 			// =========================
 			// Áreas (escritura solo admin, lectura en protected)
@@ -381,6 +399,7 @@ func New(database *gorm.DB) *gin.Engine {
 			admin.POST("/areas", areaHandler.Create)
 			admin.PATCH("/areas/:id/activo", areaHandler.UpdateStatus)
 			admin.PATCH("/areas/:id", areaHandler.Update)
+			admin.DELETE("/areas/:id", areaHandler.Delete)
 
 			// =========================
 			// Tipos de Factura
@@ -396,6 +415,7 @@ func New(database *gorm.DB) *gin.Engine {
 			admin.POST("/rutas", rutaHandler.Create)
 			admin.PUT("/rutas/:id", rutaHandler.Update)
 			admin.PATCH("/rutas/:id/activo", rutaHandler.UpdateStatus)
+			admin.DELETE("/rutas/:id", rutaHandler.Delete)
 
 			// =========================
 			// Pasos de Ruta
@@ -404,6 +424,7 @@ func New(database *gorm.DB) *gin.Engine {
 			admin.GET("/pasos-ruta", pasoRutaHandler.List)
 			admin.PUT("/pasos-ruta/:id", pasoRutaHandler.Update)
 			admin.PATCH("/pasos-ruta/:id/activo", pasoRutaHandler.UpdateStatus)
+			admin.DELETE("/pasos-ruta/:id", pasoRutaHandler.Delete)
 
 			// =========================
 			// Moneda
@@ -531,6 +552,7 @@ func New(database *gorm.DB) *gin.Engine {
 			admin.GET("/tipo-radicacion", tipoRadicacionHandler.List)
 			admin.PUT("/tipo-radicacion/:id", tipoRadicacionHandler.Update)
 			admin.PATCH("/tipo-radicacion/:id/activo", tipoRadicacionHandler.UpdateStatus)
+			admin.DELETE("/tipo-radicacion/:id", tipoRadicacionHandler.Delete)
 
 			// =========================
 			// Estado Tarea
@@ -632,11 +654,13 @@ func New(database *gorm.DB) *gin.Engine {
 			admin.POST("/normas-reparto", normaRepartoHandler.Create)
 			admin.PUT("/normas-reparto/:id", normaRepartoHandler.Update)
 			admin.PATCH("/normas-reparto/:id/activo", normaRepartoHandler.UpdateStatus)
+			admin.DELETE("/normas-reparto/:id", normaRepartoHandler.Delete)
 
 			// Proyectos
 			admin.POST("/proyectos", proyectoHandler.Create)
 			admin.PUT("/proyectos/:id", proyectoHandler.Update)
 			admin.PATCH("/proyectos/:id/activo", proyectoHandler.UpdateStatus)
+			admin.DELETE("/proyectos/:id", proyectoHandler.Delete)
 
 			// Salario Mínimo
 			admin.POST("/salario-minimo", salarioMinimoHandler.Create)

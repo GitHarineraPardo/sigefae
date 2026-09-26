@@ -42,24 +42,46 @@ func (h *Handler) Create(c *gin.Context) {
 		return
 	}
 
-	// ── NOTIFICAR al primer responsable ──
-	if h.notifSvc != nil && response.UsuarioActualID != 0 && response.UsuarioActualID != user.ID {
+	// ── NOTIFICAR al primer responsable (por usuario o cargo) ──
+	if h.notifSvc != nil {
 		docID := response.ID
-		h.notifSvc.CreateFromEvent(notificacion.CreateDTO{
-			UsuarioID:           response.UsuarioActualID,
-			DocumentoRadicadoID: &docID,
-			Mensaje:             "Nuevo radicado " + response.NumeroRadicado + " requiere tu revisión",
-			Estado:              "Pendiente",
-			Tipo:                "Asignacion",
-			FechaCreacion:       time.Now(),
-		})
+		if response.UsuarioActualID != nil && *response.UsuarioActualID != user.ID {
+			// Notificación a usuario específico
+			h.notifSvc.CreateFromEvent(notificacion.CreateDTO{
+				UsuarioID:           *response.UsuarioActualID,
+				DocumentoRadicadoID: &docID,
+				Mensaje:             "Nuevo radicado " + response.NumeroRadicado + " requiere tu revisión",
+				Estado:              "Pendiente",
+				Tipo:                "Asignacion",
+				FechaCreacion:       time.Now(),
+			})
+		} else if response.UsuarioActualID == nil && response.CargoActualID != nil {
+			// Notificación masiva por cargo
+			var cargo db.Cargo
+			if err := h.db.First(&cargo, *response.CargoActualID).Error; err == nil {
+				var usuariosConCargo []db.Usuario
+				if err := h.db.Where("cargo_id = ? AND activo = ?", *response.CargoActualID, true).Find(&usuariosConCargo).Error; err == nil {
+					for _, uc := range usuariosConCargo {
+						copyDocID := docID
+						h.notifSvc.CreateFromEvent(notificacion.CreateDTO{
+							UsuarioID:           uc.ID,
+							DocumentoRadicadoID: &copyDocID,
+							Mensaje:             fmt.Sprintf("Nuevo radicado %s requiere tu revisión (Cargo: %s)", response.NumeroRadicado, cargo.Nombre),
+							Estado:              "Pendiente",
+							Tipo:                "Asignacion",
+							FechaCreacion:       time.Now(),
+						})
+					}
+				}
+			}
+		}
 	}
 
 	// ── REGISTRAR Trazabilidad ──
 	descTrazabilidad := "Documento radicado e iniciado en el flujo."
-	if response.UsuarioActualID != 0 {
+	if response.UsuarioActualID != nil {
 		var usuarioSiguiente db.Usuario
-		h.db.First(&usuarioSiguiente, response.UsuarioActualID)
+		h.db.First(&usuarioSiguiente, *response.UsuarioActualID)
 		nombreSiguiente := usuarioSiguiente.Nombre
 		if nombreSiguiente == "" {
 			nombreSiguiente = "Usuario Desconocido"
@@ -840,7 +862,7 @@ func (h *Handler) DecidirSolicitudPermiso(c *gin.Context) {
 
 func (h *Handler) Causar(c *gin.Context) {
 	user := c.MustGet("user").(db.Usuario)
-	
+
 	// Validar permisos (Contabilidad o Superadministrador)
 	if user.Rol == nil || (user.Rol.Nombre != "Contabilidad" && user.Rol.Nombre != "Superadministrador") {
 		c.JSON(http.StatusForbidden, gin.H{"error": "No tienes permisos para realizar causaciones"})
@@ -925,7 +947,7 @@ func (h *Handler) Causar(c *gin.Context) {
 
 func (h *Handler) Pagar(c *gin.Context) {
 	user := c.MustGet("user").(db.Usuario)
-	
+
 	// Validar permisos (Tesorería o Superadministrador)
 	if user.Rol == nil || (user.Rol.Nombre != "Tesorería" && user.Rol.Nombre != "Superadministrador") {
 		c.JSON(http.StatusForbidden, gin.H{"error": "No tienes permisos para realizar pagos"})
@@ -1001,7 +1023,7 @@ func (h *Handler) Pagar(c *gin.Context) {
 
 func (h *Handler) ToggleComprobantesSubidos(c *gin.Context) {
 	user := c.MustGet("user").(db.Usuario)
-	
+
 	// Validar permisos (Tesorería o Superadministrador)
 	if user.Rol == nil || (user.Rol.Nombre != "Tesorería" && user.Rol.Nombre != "Superadministrador") {
 		c.JSON(http.StatusForbidden, gin.H{"error": "No tienes permisos para modificar este estado"})

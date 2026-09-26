@@ -20,7 +20,24 @@ func New(database *gorm.DB) *Service {
 	}
 }
 
+func (s *Service) validateCargo(cargoID *uint) error {
+	if cargoID == nil {
+		return nil
+	}
+	var cargo db.Cargo
+	if err := s.db.Where("activo = ?", true).First(&cargo, *cargoID).Error; err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return errors.New("el cargo no existe o está inactivo")
+		}
+		return err
+	}
+	return nil
+}
+
 func (s *Service) Create(req CreateDTO) (*Response, error) {
+	if err := s.validateCargo(req.CargoAsignadoID); err != nil {
+		return nil, err
+	}
 
 	// ==========================
 	// Validar Documento Radicado
@@ -42,22 +59,24 @@ func (s *Service) Create(req CreateDTO) (*Response, error) {
 	}
 
 	// ==========================
-	// Validar Usuario
+	// Validar Usuario si viene
 	// ==========================
 
 	var usuario db.Usuario
 
-	err = s.db.First(
-		&usuario,
-		req.UsuarioAsignadoID,
-	).Error
+	if req.UsuarioAsignadoID != nil {
+		err = s.db.First(
+			&usuario,
+			*req.UsuarioAsignadoID,
+		).Error
 
-	if errors.Is(err, gorm.ErrRecordNotFound) {
-		return nil, errors.New("usuario no encontrado")
-	}
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, errors.New("usuario no encontrado")
+		}
 
-	if err != nil {
-		return nil, err
+		if err != nil {
+			return nil, err
+		}
 	}
 
 	// ==========================
@@ -86,6 +105,7 @@ func (s *Service) Create(req CreateDTO) (*Response, error) {
 	tarea := db.Tarea{
 		DocumentoRadicadoID: req.DocumentoRadicadoID,
 		UsuarioAsignadoID:   req.UsuarioAsignadoID,
+		CargoAsignadoID:     req.CargoAsignadoID,
 		EstadoID:            req.EstadoID,
 		Descripcion:         req.Descripcion,
 		FechaAsignacion:     time.Now(),
@@ -93,6 +113,9 @@ func (s *Service) Create(req CreateDTO) (*Response, error) {
 	}
 
 	if err := s.db.Create(&tarea).Error; err != nil {
+		return nil, err
+	}
+	if err := s.db.Preload("CargoAsignadoCargo").Preload("UsuarioAsignado").Preload("Estado").First(&tarea, tarea.ID).Error; err != nil {
 		return nil, err
 	}
 
@@ -106,6 +129,9 @@ func (s *Service) List() ([]Response, error) {
 	var tareas []db.Tarea
 
 	if err := s.db.
+		Preload("CargoAsignadoCargo").
+		Preload("UsuarioAsignado").
+		Preload("Estado").
 		Order("created_at DESC").
 		Find(&tareas).Error; err != nil {
 
@@ -122,6 +148,9 @@ func (s *Service) List() ([]Response, error) {
 }
 
 func (s *Service) Update(id uint, req UpdateDTO) (*Response, error) {
+	if err := s.validateCargo(req.CargoAsignadoID); err != nil {
+		return nil, err
+	}
 
 	var tarea db.Tarea
 
@@ -136,22 +165,24 @@ func (s *Service) Update(id uint, req UpdateDTO) (*Response, error) {
 	}
 
 	// ==========================
-	// Validar Usuario
+	// Validar Usuario si viene
 	// ==========================
 
 	var usuario db.Usuario
 
-	err = s.db.First(
-		&usuario,
-		req.UsuarioAsignadoID,
-	).Error
+	if req.UsuarioAsignadoID != nil {
+		err = s.db.First(
+			&usuario,
+			*req.UsuarioAsignadoID,
+		).Error
 
-	if errors.Is(err, gorm.ErrRecordNotFound) {
-		return nil, errors.New("usuario no encontrado")
-	}
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, errors.New("usuario no encontrado")
+		}
 
-	if err != nil {
-		return nil, err
+		if err != nil {
+			return nil, err
+		}
 	}
 
 	// ==========================
@@ -179,6 +210,7 @@ func (s *Service) Update(id uint, req UpdateDTO) (*Response, error) {
 
 	if err := s.db.Model(&tarea).Updates(map[string]any{
 		"usuario_asignado_id": req.UsuarioAsignadoID,
+		"cargo_asignado_id":   req.CargoAsignadoID,
 		"estado_id":           req.EstadoID,
 		"descripcion":         req.Descripcion,
 		"fecha_inicio":        req.FechaInicio,
@@ -189,7 +221,7 @@ func (s *Service) Update(id uint, req UpdateDTO) (*Response, error) {
 		return nil, err
 	}
 
-	if err := s.db.First(&tarea, tarea.ID).Error; err != nil {
+	if err := s.db.Preload("CargoAsignadoCargo").Preload("UsuarioAsignado").Preload("Estado").First(&tarea, tarea.ID).Error; err != nil {
 		return nil, err
 	}
 

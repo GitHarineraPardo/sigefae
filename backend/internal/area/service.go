@@ -131,3 +131,8 @@ func (s *Service) Update(id uint, req UpdateRequest) (*Response, error) {
 
 	return &response, nil
 }
+
+func (s *Service) Delete(id uint) error {
+	return s.db.Delete(&db.Area{}, id).Error
+}
+

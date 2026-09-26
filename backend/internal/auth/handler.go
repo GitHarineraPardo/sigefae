@@ -3,6 +3,8 @@ package auth
 import (
 	"net/http"
 
+	"sigefae/internal/db"
+
 	"github.com/gin-gonic/gin"
 )
 
@@ -28,11 +30,12 @@ type LoginResponse struct {
 }
 
 type UsuarioDTO struct {
-	ID     uint   `json:"id"`
-	Nombre string `json:"nombre"`
-	Email  string `json:"email"`
-	Cargo  string `json:"cargo"`
-	Rol    string `json:"rol"`
+	ID      uint   `json:"id"`
+	Nombre  string `json:"nombre"`
+	Email   string `json:"email"`
+	CargoID *uint  `json:"cargo_id,omitempty"`
+	Cargo   string `json:"cargo"`
+	Rol     string `json:"rol"`
 }
 
 func (h *Handler) Login(c *gin.Context) {
@@ -65,10 +68,11 @@ func (h *Handler) Login(c *gin.Context) {
 	response := LoginResponse{
 		Token: token,
 		Usuario: UsuarioDTO{
-			ID:     user.ID,
-			Nombre: user.Nombre,
-			Email:  user.Email,
-			Cargo:  user.Cargo,
+			ID:      user.ID,
+			Nombre:  user.Nombre,
+			Email:   user.Email,
+			CargoID: user.CargoID,
+			Cargo:   cargoNombre(user.Cargo),
 		},
 	}
 
@@ -107,10 +111,11 @@ func (h *Handler) SSO(c *gin.Context) {
 	response := LoginResponse{
 		Token: token,
 		Usuario: UsuarioDTO{
-			ID:     user.ID,
-			Nombre: user.Nombre,
-			Email:  user.Email,
-			Cargo:  user.Cargo,
+			ID:      user.ID,
+			Nombre:  user.Nombre,
+			Email:   user.Email,
+			CargoID: user.CargoID,
+			Cargo:   cargoNombre(user.Cargo),
 		},
 	}
 
@@ -119,4 +124,11 @@ func (h *Handler) SSO(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusOK, response)
+}
+
+func cargoNombre(cargo *db.Cargo) string {
+	if cargo == nil {
+		return ""
+	}
+	return cargo.Nombre
 }

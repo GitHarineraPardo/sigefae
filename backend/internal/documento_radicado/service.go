@@ -62,15 +62,17 @@ func (s *Service) Create(dto CreateDTO, usuarioID uint) (*db.DocumentoRadicado, 
 		// ── 4. Obtener primer paso de la ruta ──
 		var primerPaso db.PasoRuta
 		var primerPasoID *uint
-		responsableID := usuarioID
+		responsableID := &usuarioID
+		var cargoActualID *uint
 		estadoPosesion := "Libre"
 
 		err := tx.Where("ruta_id = ?", dto.RutaID).Order("orden ASC, id ASC").First(&primerPaso).Error
 		if err == nil {
 			id := primerPaso.ID
 			primerPasoID = &id
-			if primerPaso.UsuarioID != 0 {
+			if primerPaso.UsuarioID != nil || primerPaso.CargoID != nil {
 				responsableID = primerPaso.UsuarioID
+				cargoActualID = primerPaso.CargoID
 			}
 			estadoPosesion = "EnProceso"
 		}
@@ -116,6 +118,7 @@ func (s *Service) Create(dto CreateDTO, usuarioID uint) (*db.DocumentoRadicado, 
 			NumeroRadicado:       numeroRadicado,
 			FechaRadicacion:      time.Now(),
 			UsuarioActualID:      responsableID,
+			CargoActualID:        cargoActualID,
 			EstadoPosesion:       estadoPosesion,
 			PasoActualID:         primerPasoID,
 			EstadoID:             estadoInicial.ID,
@@ -232,6 +235,7 @@ func (s *Service) Create(dto CreateDTO, usuarioID uint) (*db.DocumentoRadicado, 
 		Preload("TipoRadicacion").
 		Preload("Ruta").
 		Preload("UsuarioActual").
+		Preload("CargoActual").
 		Preload("PasoActual").
 		Preload("PasoActual.Usuario").
 		Preload("Estado").
@@ -260,6 +264,7 @@ func (s *Service) List() ([]db.DocumentoRadicado, error) {
 		Preload("Estado").
 		Preload("PasoActual").
 		Preload("UsuarioActual").
+		Preload("CargoActual").
 		Preload("Archivos").
 		Preload("Qr").
 		Preload("NormasReparto").
@@ -283,6 +288,7 @@ func (s *Service) GetByID(id uint) (*db.DocumentoRadicado, error) {
 		Preload("Estado").
 		Preload("PasoActual").
 		Preload("UsuarioActual").
+		Preload("CargoActual").
 		Preload("Archivos").
 		Preload("Archivos.CreadoPor").
 		Preload("Qr").
@@ -360,6 +366,7 @@ func (s *Service) Update(id uint, dto UpdateDTO) (*db.DocumentoRadicado, error) 
 		Preload("Estado").
 		Preload("PasoActual").
 		Preload("UsuarioActual").
+		Preload("CargoActual").
 		Preload("Archivos").
 		Preload("Qr").
 		Preload("NormasReparto").
@@ -415,7 +422,6 @@ func generarTareasDesdeRuta(tx *gorm.DB, radicado *db.DocumentoRadicado, rutaID 
 			Preload("RolAprobador").
 			Order("monto_minimo_smmlv desc")
 
-
 		if err := query.Find(&reglas).Error; err != nil {
 			return err
 		}
@@ -439,18 +445,21 @@ func generarTareasDesdeRuta(tx *gorm.DB, radicado *db.DocumentoRadicado, rutaID 
 	sort.Slice(antesDelFinal, func(i, j int) bool { return antesDelFinal[i].Prioridad < antesDelFinal[j].Prioridad })
 	sort.Slice(alFinal, func(i, j int) bool { return alFinal[i].Prioridad < alFinal[j].Prioridad })
 
-	// ── 5. Helper para resolver usuario de una regla ──
-	resolverUsuario := func(r db.ReglaMontoRuta) uint {
+	// ── 5. Helper para resolver asignación de una regla ──
+	resolverAsignacion := func(r db.ReglaMontoRuta) (*uint, *uint) {
+		if r.CargoAprobadorID != nil {
+			return nil, r.CargoAprobadorID
+		}
 		if r.UsuarioAprobadorID != nil {
-			return *r.UsuarioAprobadorID
+			return r.UsuarioAprobadorID, nil
 		}
 		if r.RolAprobadorID != nil {
 			var usr db.Usuario
 			if err := tx.Where("id_rol = ? AND activo = ?", *r.RolAprobadorID, true).First(&usr).Error; err == nil {
-				return usr.ID
+				return &usr.ID, nil
 			}
 		}
-		return 0
+		return nil, nil
 	}
 
 	formatoRegla := func(r db.ReglaMontoRuta) string {
@@ -462,7 +471,8 @@ func generarTareasDesdeRuta(tx *gorm.DB, radicado *db.DocumentoRadicado, rutaID 
 
 	type pasoFinal struct {
 		Nombre    string
-		UsuarioID uint
+		UsuarioID *uint
+		CargoID   *uint
 		EsRegla   bool
 	}
 
@@ -470,9 +480,11 @@ func generarTareasDesdeRuta(tx *gorm.DB, radicado *db.DocumentoRadicado, rutaID 
 
 	// 5.1 PRIMERO
 	for _, r := range alInicio {
+		uid, cargoID := resolverAsignacion(r)
 		flujo = append(flujo, pasoFinal{
 			Nombre:    formatoRegla(r),
-			UsuarioID: resolverUsuario(r),
+			UsuarioID: uid,
+			CargoID:   cargoID,
 			EsRegla:   true,
 		})
 	}
@@ -483,15 +495,18 @@ func generarTareasDesdeRuta(tx *gorm.DB, radicado *db.DocumentoRadicado, rutaID 
 		flujo = append(flujo, pasoFinal{
 			Nombre:    p.Nombre,
 			UsuarioID: p.UsuarioID,
+			CargoID:   p.CargoID,
 			EsRegla:   false,
 		})
 	}
 
 	// 5.3 ANTES_FINAL: justo antes del cierre del flujo base
 	for _, r := range antesDelFinal {
+		uid, cargoID := resolverAsignacion(r)
 		flujo = append(flujo, pasoFinal{
 			Nombre:    formatoRegla(r),
-			UsuarioID: resolverUsuario(r),
+			UsuarioID: uid,
+			CargoID:   cargoID,
 			EsRegla:   true,
 		})
 	}
@@ -501,56 +516,71 @@ func generarTareasDesdeRuta(tx *gorm.DB, radicado *db.DocumentoRadicado, rutaID 
 	flujo = append(flujo, pasoFinal{
 		Nombre:    ultimoPaso.Nombre,
 		UsuarioID: ultimoPaso.UsuarioID,
+		CargoID:   ultimoPaso.CargoID,
 		EsRegla:   false,
 	})
 
 	// 5.5 ULTIMO: después de todo
 	for _, r := range alFinal {
+		uid, cargoID := resolverAsignacion(r)
 		flujo = append(flujo, pasoFinal{
 			Nombre:    formatoRegla(r),
-			UsuarioID: resolverUsuario(r),
+			UsuarioID: uid,
+			CargoID:   cargoID,
 			EsRegla:   true,
 		})
 	}
 
-	// ── 5.6 PREFIJO DE CORREOS (Oriente / Malambo) ──
-	buscarUsuarioIDPorEmail := func(email string) uint {
-		var u db.Usuario
-		if err := tx.Where("email = ? AND activo = ?", email, true).First(&u).Error; err == nil {
-			return u.ID
-		}
-		return 0
-	}
+	// ── 5.6 Obtener IDs de Cargos fijos ──
+	var cargoAuxOriente, cargoAuxNorte, cargoAnalistaNorte, cargoAnalistaOriente db.Cargo
+	tx.Where("nombre = ?", "Auxiliar Compras Oriente").First(&cargoAuxOriente)
+	tx.Where("nombre = ?", "Auxiliar Compras Norte").First(&cargoAuxNorte)
+	tx.Where("nombre = ?", "Analista Compras Norte").First(&cargoAnalistaNorte)
+	tx.Where("nombre = ?", "Analista Compras Oriente").First(&cargoAnalistaOriente)
 
-	idAuxOriente := buscarUsuarioIDPorEmail("auxadmonoriente@harinerapardo.co")
+	// ── 5.7 PREFIJO Y SUFIJO POR ZONA ──
+	// BU: [Aux Compras Oriente (Jennyfer)] → [Analista Compras Oriente] → pasos → [Aux Compras Oriente]
+	// MB: [Aux Compras Oriente (Jennyfer)] → [Aux Compras Norte] → [Analista Compras Norte] → pasos → [Aux Compras Oriente]
+	var prefijoFlujo []pasoFinal
+	var sufijo1Flujo []pasoFinal
 
-	prefijoFlujo := []pasoFinal{
-		{Nombre: "Revisión Auxiliar Admon Oriente", UsuarioID: idAuxOriente, EsRegla: false},
-	}
+	// ── Jennyfer (Aux Compras Oriente) siempre va de PRIMERO en ambas zonas ──
+	prefijoFlujo = append(prefijoFlujo, pasoFinal{
+		Nombre:  "Revisión Auxiliar Compras Oriente",
+		CargoID: &cargoAuxOriente.ID,
+		EsRegla: false,
+	})
 
 	if esMalambo {
-		idAuxNorte := buscarUsuarioIDPorEmail("auxadmonnorte@harinerapardo.co")
-		idAnalistaNorte := buscarUsuarioIDPorEmail("analistacomprasnorte@harinerapardo.co")
+		// MB: después de Jennyfer va Aux Compras Norte, luego Analista Compras Norte, luego pasos
 		prefijoFlujo = append(prefijoFlujo, pasoFinal{
-			Nombre:    "Revisión Auxiliar Admon Norte (Malambo)",
-			UsuarioID: idAuxNorte,
-			EsRegla:   false,
+			Nombre:  "Revisión Auxiliar Compras Norte",
+			CargoID: &cargoAuxNorte.ID,
+			EsRegla: false,
 		})
 		prefijoFlujo = append(prefijoFlujo, pasoFinal{
-			Nombre:    "Revisión Analista Compras Norte",
-			UsuarioID: idAnalistaNorte,
-			EsRegla:   false,
+			Nombre:  "Revisión Analista Compras Norte",
+			CargoID: &cargoAnalistaNorte.ID,
+			EsRegla: false,
 		})
 	} else {
-		idAnalistaOriente := buscarUsuarioIDPorEmail("analistacomprasoriente@harinerapardo.co")
+		// BU: después de Jennyfer va Analista Compras Oriente, luego pasos
 		prefijoFlujo = append(prefijoFlujo, pasoFinal{
-			Nombre:    "Revisión Analista Compras Oriente",
-			UsuarioID: idAnalistaOriente,
-			EsRegla:   false,
+			Nombre:  "Revisión Analista Compras Oriente",
+			CargoID: &cargoAnalistaOriente.ID,
+			EsRegla: false,
 		})
 	}
 
 	flujo = append(prefijoFlujo, flujo...)
+	flujo = append(flujo, sufijo1Flujo...)
+
+	// ── 5.8 PASO FINAL ABSOLUTO ──
+	flujo = append(flujo, pasoFinal{
+		Nombre:  "Revisión Auxiliar Compras Oriente",
+		CargoID: &cargoAuxOriente.ID,
+		EsRegla: false,
+	})
 
 	// ── 6. Estados base ──
 	var estadoPendiente db.EstadoTarea
@@ -566,14 +596,21 @@ func generarTareasDesdeRuta(tx *gorm.DB, radicado *db.DocumentoRadicado, rutaID 
 
 	// ── 7. Crear tareas en orden ──
 	for i, pf := range flujo {
-		uid := pf.UsuarioID
-		if uid == 0 && i == 0 {
+		var uid *uint
+		cargoID := pf.CargoID
+
+		// Si no tiene asignación específica, heredar del radicado (creador)
+		if pf.UsuarioID == nil && pf.CargoID == nil && i == 0 {
 			uid = radicado.UsuarioActualID
+			cargoID = radicado.CargoActualID
+		} else {
+			uid = pf.UsuarioID
 		}
 
 		tarea := db.Tarea{
 			DocumentoRadicadoID: radicado.ID,
 			UsuarioAsignadoID:   uid,
+			CargoAsignadoID:     cargoID,
 			EstadoID:            estadoPendiente.ID,
 			Descripcion:         pf.Nombre,
 			FechaAsignacion:     now,
@@ -582,6 +619,7 @@ func generarTareasDesdeRuta(tx *gorm.DB, radicado *db.DocumentoRadicado, rutaID 
 			tarea.EstadoID = estadoEnProceso.ID
 			tarea.FechaInicio = &now
 			radicado.UsuarioActualID = uid
+			radicado.CargoActualID = cargoID
 		}
 		if err := tx.Create(&tarea).Error; err != nil {
 			return err
@@ -707,6 +745,7 @@ func (s *Service) GetByNumeroRadicado(numero string) (*db.DocumentoRadicado, err
 		Preload("Estado").
 		Preload("PasoActual").
 		Preload("UsuarioActual").
+		Preload("CargoActual").
 		Preload("Qr").
 		Preload("NormasReparto").
 		Preload("NormasReparto.NormaReparto").
@@ -979,4 +1018,3 @@ func (s *Service) AsignarActivosFijos(radicadoID uint, dtos []ActivoFijoInputDTO
 		return nil
 	})
 }
-

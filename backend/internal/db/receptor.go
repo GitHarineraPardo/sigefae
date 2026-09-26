@@ -1,5 +1,7 @@
 package db
 
+import "gorm.io/gorm"
+
 // ---------------------------------------------------------------------------
 // Receptor
 // ---------------------------------------------------------------------------
@@ -11,6 +13,8 @@ type Receptor struct {
 	TipoDocumento   *TipoDocumento `gorm:"foreignKey:TipoDocumentoID;references:ID" json:"tipo_documento,omitempty"`
 	NumeroDocumento string         `gorm:"column:numero_documento;type:varchar(50);uniqueIndex:uk_receptorRFrespo_documento" json:"numero_documento"`
 	Activo          bool           `gorm:"column:activo;default:true" json:"activo"`
+	DeletedAt       gorm.DeletedAt `gorm:"index" json:"-"`
 }
 
 func (Receptor) TableName() string { return "receptor" }
+

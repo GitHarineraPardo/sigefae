@@ -42,7 +42,7 @@ func (h *Handler) Create(c *gin.Context) {
 	if h.notifSvc != nil && dto.DocumentoRadicadoID != 0 && dto.UsuarioID != 0 {
 		var rad db.DocumentoRadicado
 		if err := h.db.First(&rad, dto.DocumentoRadicadoID).Error; err == nil {
-			if rad.UsuarioActualID != 0 && rad.UsuarioActualID != dto.UsuarioID {
+			if rad.UsuarioActualID != nil && *rad.UsuarioActualID != dto.UsuarioID {
 				docID := dto.DocumentoRadicadoID
 
 				mensajeNotif := "Nuevo comentario en " + rad.NumeroRadicado
@@ -55,7 +55,7 @@ func (h *Handler) Create(c *gin.Context) {
 				}
 
 				h.notifSvc.CreateFromEvent(notificacion.CreateDTO{
-					UsuarioID:           rad.UsuarioActualID,
+					UsuarioID:           *rad.UsuarioActualID,
 					DocumentoRadicadoID: &docID,
 					Mensaje:             mensajeNotif,
 					Estado:              "Pendiente",

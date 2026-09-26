@@ -327,12 +327,7 @@ export function useRadicacion(obtenerToken, userId, setDocumentos, setActiveTab,
       });
       if (!res.ok) { const errData = await res.json(); throw new Error(errData.error || "Error al radicar"); }
       const creado = await res.json();
-      if (creado?.usuario_actual?.id && creado.usuario_actual.id !== userId) {
-        await fetch(`${API}/notificacion`, {
-          method: "POST", headers: { "Content-Type": "application/json", Authorization: `Bearer ${obtenerToken()}` },
-          body: JSON.stringify({ usuario_id: creado.usuario_actual.id, documento_radicado_id: creado.id, mensaje: `Nuevo radicado #${creado.numero_radicado} requiere tu revisión`, estado: "Pendiente", tipo: "Asignacion", fecha_creacion: new Date().toISOString() })
-        });
-      }
+
       setShowRadicarModal(false); setRadicarDocId(null);
       setSelectedDocId(null); setDocDetail(null);
       setDocumentos(prev => prev.filter(d => d.id !== radicarDocId));

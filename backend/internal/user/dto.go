@@ -4,24 +4,25 @@ type CreateRequest struct {
 	Nombre     string `json:"nombre" binding:"required"`
 	Email      string `json:"email" binding:"required,email"`
 	Contrasena string `json:"contrasena" binding:"required,min=6"`
-	Cargo      string `json:"cargo" binding:"required"`
+	CargoID    uint   `json:"cargo_id" binding:"required"`
 	RolID      uint   `json:"rol_id" binding:"required"`
 }
 
 type Response struct {
-	ID     uint   `json:"id"`
-	Nombre string `json:"nombre"`
-	Email  string `json:"email"`
-	Cargo  string `json:"cargo"`
-	Rol    string `json:"rol"`
-	Activo bool   `json:"activo"`
+	ID      uint   `json:"id"`
+	Nombre  string `json:"nombre"`
+	Email   string `json:"email"`
+	CargoID *uint  `json:"cargo_id,omitempty"`
+	Cargo   string `json:"cargo"`
+	Rol     string `json:"rol"`
+	Activo  bool   `json:"activo"`
 }
 
 type UpdateRequest struct {
-	Nombre string `json:"nombre" binding:"required"`
-	Email  string `json:"email" binding:"required,email"`
-	Cargo  string `json:"cargo" binding:"required"`
-	RolID  uint   `json:"rol_id" binding:"required"`
+	Nombre  string `json:"nombre" binding:"required"`
+	Email   string `json:"email" binding:"required,email"`
+	CargoID uint   `json:"cargo_id" binding:"required"`
+	RolID   uint   `json:"rol_id" binding:"required"`
 }
 
 type UpdateStatusRequest struct {

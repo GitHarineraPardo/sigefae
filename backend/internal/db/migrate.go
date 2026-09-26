@@ -25,5 +25,11 @@ func Migrate() error {
 	if err := DB.AutoMigrate(BaseModels()...); err != nil {
 		return err
 	}
-	return DB.AutoMigrate(CircularModels()...)
+	if err := DB.AutoMigrate(CircularModels()...); err != nil {
+		return err
+	}
+	if err := MigrateCargoIDs(DB); err != nil {
+		return err
+	}
+	return MigrateCargoForeignKeys(DB)
 }

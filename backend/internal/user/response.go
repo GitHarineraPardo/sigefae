@@ -5,11 +5,14 @@ import "sigefae/internal/db"
 func toResponse(user db.Usuario) Response {
 
 	response := Response{
-		ID:     user.ID,
-		Nombre: user.Nombre,
-		Email:  user.Email,
-		Cargo:  user.Cargo,
-		Activo: user.Activo,
+		ID:      user.ID,
+		Nombre:  user.Nombre,
+		Email:   user.Email,
+		CargoID: user.CargoID,
+		Activo:  user.Activo,
+	}
+	if user.Cargo != nil {
+		response.Cargo = user.Cargo.Nombre
 	}
 
 	if user.Rol != nil {

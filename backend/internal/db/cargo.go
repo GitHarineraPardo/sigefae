@@ -6,16 +6,13 @@ import (
 	"gorm.io/gorm"
 )
 
-// SalarioMinimo define el catálogo de Salario Mínimo Mensual Legal Vigente (SMMLV) por año.
-type SalarioMinimo struct {
+type Cargo struct {
 	ID        uint           `gorm:"primaryKey;column:id" json:"id"`
-	Ano       int            `gorm:"column:ano;unique" json:"ano"`
-	Valor     float64        `gorm:"column:valor" json:"valor"`
+	Nombre    string         `gorm:"column:nombre;type:varchar(255);uniqueIndex" json:"nombre"`
 	Activo    bool           `gorm:"column:activo;default:true" json:"activo"`
 	CreatedAt time.Time      `gorm:"column:created_at" json:"created_at"`
 	UpdatedAt time.Time      `gorm:"column:updated_at" json:"updated_at"`
 	DeletedAt gorm.DeletedAt `gorm:"index" json:"-"`
 }
 
-func (SalarioMinimo) TableName() string { return "salario_minimo" }
-
+func (Cargo) TableName() string { return "cargo" }

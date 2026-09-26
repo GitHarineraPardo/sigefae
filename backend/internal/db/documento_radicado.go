@@ -1,6 +1,10 @@
 package db
 
-import "time"
+import (
+	"time"
+
+	"gorm.io/gorm"
+)
 
 // ---------------------------------------------------------------------------
 // Documento radicado (flujo de radicación / trazabilidad)
@@ -16,7 +20,9 @@ type DocumentoRadicado struct {
 	Ruta                    *Ruta                    `gorm:"foreignKey:RutaID;references:ID" json:"ruta,omitempty"`
 	NumeroRadicado          string                   `gorm:"column:numero_radicado;type:varchar(100);uniqueIndex:uk_numero_radicado" json:"numero_radicado"`
 	FechaRadicacion         time.Time                `gorm:"column:fecha_radicacion;index:idx_radicado_fecha" json:"fecha_radicacion"`
-	UsuarioActualID         uint                     `gorm:"column:usuario_actual_id;index:idx_radicado_usuario" json:"usuario_actual_id"`
+	UsuarioActualID         *uint                    `gorm:"column:usuario_actual_id;index:idx_radicado_usuario" json:"usuario_actual_id,omitempty"`
+	CargoActualID           *uint                    `gorm:"column:cargo_actual_id;index:idx_radicado_cargo_actual" json:"cargo_actual_id,omitempty"`
+	CargoActual             *Cargo                   `gorm:"foreignKey:CargoActualID;references:ID" json:"cargo_actual,omitempty"`
 	UsuarioActual           *Usuario                 `gorm:"foreignKey:UsuarioActualID;references:ID" json:"usuario_actual,omitempty"`
 	EstadoPosesion          string                   `gorm:"column:estado_posesion;type:varchar(50)" json:"estado_posesion"` // "Libre", "Tomado", "EnProceso"
 	PasoActualID            *uint                    `gorm:"column:paso_actual_id;index:idx_radicado_paso_actual" json:"paso_actual_id,omitempty"`
@@ -45,14 +51,16 @@ type DocumentoRadicado struct {
 	Trazabilidades          []Trazabilidad           `gorm:"foreignKey:DocumentoRadicadoID" json:"trazabilidades,omitempty"`
 	Aprobaciones            []RegistroAprobacion     `gorm:"foreignKey:DocumentoRadicadoID" json:"aprobaciones,omitempty"`
 	UpdatedAt               time.Time                `gorm:"column:updated_at" json:"updated_at"`
+	DeletedAt               gorm.DeletedAt           `gorm:"index" json:"-"`
 }
 
 func (DocumentoRadicado) TableName() string { return "documento_radicado" }
 
 type CodigoQr struct {
-	ID     uint   `gorm:"primaryKey;column:id" json:"id"`
-	Url    string `gorm:"column:url;type:varchar(500)" json:"url"`
-	Activo bool   `gorm:"column:activo;default:true" json:"activo"`
+	ID        uint           `gorm:"primaryKey;column:id" json:"id"`
+	Url       string         `gorm:"column:url;type:varchar(500)" json:"url"`
+	Activo    bool           `gorm:"column:activo;default:true" json:"activo"`
+	DeletedAt gorm.DeletedAt `gorm:"index" json:"-"`
 }
 
 func (CodigoQr) TableName() string { return "codigo_qr" }
@@ -65,6 +73,7 @@ type Comentario struct {
 	UsuarioID           uint               `gorm:"column:usuario_id;index:idx_comentario_usuario" json:"usuario_id"`
 	Usuario             *Usuario           `gorm:"foreignKey:UsuarioID;references:ID" json:"usuario,omitempty"`
 	Fecha               time.Time          `gorm:"column:fecha;index:idx_comentario_fecha" json:"fecha"`
+	DeletedAt           gorm.DeletedAt     `gorm:"index" json:"-"`
 }
 
 func (Comentario) TableName() string { return "comentario" }
@@ -78,6 +87,8 @@ type Trazabilidad struct {
 	Accion              string             `gorm:"column:accion;type:varchar(255)" json:"accion"`
 	Descripcion         string             `gorm:"column:descripcion;type:text" json:"descripcion"`
 	Fecha               time.Time          `gorm:"column:fecha;index:idx_trazabilidad_fecha" json:"fecha"`
+	DeletedAt           gorm.DeletedAt     `gorm:"index" json:"-"`
 }
 
 func (Trazabilidad) TableName() string { return "trazabilidad" }
+

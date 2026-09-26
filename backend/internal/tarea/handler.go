@@ -41,6 +41,7 @@ func (h *Handler) ListByRadicado(c *gin.Context) {
 	if err := h.db.Where("documento_radicado_id = ?", radicadoID).
 		Preload("Estado").
 		Preload("UsuarioAsignado").
+		Preload("CargoAsignadoCargo").
 		Order("id asc").
 		Find(&tareas).Error; err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
@@ -64,7 +65,14 @@ func (h *Handler) Completar(c *gin.Context) {
 		return
 	}
 
-	if tarea.UsuarioAsignadoID != user.ID && user.Rol.Nombre != "Superadministrador" && user.Rol.Nombre != "Contabilidad" {
+	asignadoValido := false
+	if tarea.UsuarioAsignadoID != nil && *tarea.UsuarioAsignadoID == user.ID {
+		asignadoValido = true
+	} else if tarea.CargoAsignadoID != nil && user.CargoID != nil && *tarea.CargoAsignadoID == *user.CargoID {
+		asignadoValido = true
+	}
+
+	if !asignadoValido && user.Rol.Nombre != "Superadministrador" && user.Rol.Nombre != "Contabilidad" {
 		c.JSON(http.StatusForbidden, gin.H{"error": "No estás asignado a esta tarea"})
 		return
 	}
@@ -171,10 +179,13 @@ func (h *Handler) Completar(c *gin.Context) {
 
 		h.db.Model(&db.DocumentoRadicado{}).Where("id = ?", tarea.DocumentoRadicadoID).Updates(map[string]any{
 			"usuario_actual_id":          siguiente.UsuarioAsignadoID,
+			"cargo_actual_id":            siguiente.CargoAsignadoID,
 			"estado_posesion":            "EnProceso",
 			"tarea_pendiente_retorno_id": gorm.Expr("NULL"),
 		})
-		notificarA = siguiente.UsuarioAsignadoID
+		if siguiente.UsuarioAsignadoID != nil {
+			notificarA = *siguiente.UsuarioAsignadoID
+		}
 
 	} else if haySiguiente {
 		var estadoEnProceso db.EstadoTarea
@@ -190,78 +201,104 @@ func (h *Handler) Completar(c *gin.Context) {
 
 		h.db.Model(&db.DocumentoRadicado{}).Where("id = ?", tarea.DocumentoRadicadoID).Updates(map[string]any{
 			"usuario_actual_id": siguiente.UsuarioAsignadoID,
+			"cargo_actual_id":   siguiente.CargoAsignadoID,
 			"estado_posesion":   "EnProceso",
 		})
-		notificarA = siguiente.UsuarioAsignadoID
+		if siguiente.UsuarioAsignadoID != nil {
+			notificarA = *siguiente.UsuarioAsignadoID
+		}
 
 	} else {
 		// Última tarea → finalizar radicado
 		h.db.Model(&db.DocumentoRadicado{}).Where("id = ?", tarea.DocumentoRadicadoID).Updates(map[string]any{
 			"estado_posesion": "Completado",
 		})
-		
+
 		// ── AUTO-APRENDIZAJE DE NORMAS DE REPARTO ──
 		docSvc := documento_radicado.New(h.db)
 		_ = docSvc.MemorizarNormasProveedorRuta(tarea.DocumentoRadicadoID)
 	}
 
 	// ═══════════════════════════════════════════════════════════════
-	// 5. NOTIFICAR AL SIGUIENTE USUARIO
+	// 5. NOTIFICAR AL SIGUIENTE USUARIO (o a todos con el cargo)
 	// ═══════════════════════════════════════════════════════════════
-	if h.notifSvc != nil && notificarA != 0 && notificarA != user.ID {
+	if h.notifSvc != nil {
 		docID := tarea.DocumentoRadicadoID
-		h.notifSvc.CreateFromEvent(notificacion.CreateDTO{
-			UsuarioID:           notificarA,
-			DocumentoRadicadoID: &docID,
-			Mensaje:             "Te asignaron el radicado " + numRadicado,
-			Estado:              "Pendiente",
-			Tipo:                "Asignacion",
-			FechaCreacion:       time.Now(),
-		})
 
-		// Además notificar a los administradores para control
-		var admins []db.Usuario
-		if err := h.db.Joins("Rol").Where("Rol.nombre = ?", "Superadministrador").Find(&admins).Error; err == nil {
-			
-			var usuarioSiguiente db.Usuario
-			h.db.First(&usuarioSiguiente, notificarA)
-			nombreSiguiente := usuarioSiguiente.Nombre
-			if nombreSiguiente == "" {
-				nombreSiguiente = "Usuario Desconocido"
+		// Si la siguiente tarea es por cargo (sin usuario específico): notificar a TODOS los del cargo
+		if notificarA == 0 && haySiguiente && siguiente.CargoAsignadoID != nil {
+			var cargo db.Cargo
+			if err := h.db.First(&cargo, *siguiente.CargoAsignadoID).Error; err == nil {
+				var usuariosConCargo []db.Usuario
+				if err := h.db.Where("cargo_id = ? AND activo = ?", *siguiente.CargoAsignadoID, true).Find(&usuariosConCargo).Error; err == nil {
+					for _, uc := range usuariosConCargo {
+						copyDocID := docID
+						_, _ = h.notifSvc.CreateFromEvent(notificacion.CreateDTO{
+							UsuarioID:           uc.ID,
+							DocumentoRadicadoID: &copyDocID,
+							Mensaje:             fmt.Sprintf("Radicado %s asignado a tu cargo (%s)", numRadicado, cargo.Nombre),
+							Estado:              "Pendiente",
+							Tipo:                "Asignacion",
+							FechaCreacion:       time.Now(),
+						})
+					}
+				}
 			}
 
-			for _, a := range admins {
-				// evitar notificar al responsable ya notificado
-				if a.ID == uint(user.ID) || a.ID == notificarA {
-					continue
+		} else if notificarA != 0 && notificarA != user.ID {
+			// Notificación individual (usuario específico)
+			h.notifSvc.CreateFromEvent(notificacion.CreateDTO{
+				UsuarioID:           notificarA,
+				DocumentoRadicadoID: &docID,
+				Mensaje:             "Te asignaron el radicado " + numRadicado,
+				Estado:              "Pendiente",
+				Tipo:                "Asignacion",
+				FechaCreacion:       time.Now(),
+			})
+
+			// Además notificar a los administradores para control
+			var admins []db.Usuario
+			if err := h.db.Joins("Rol").Where("Rol.nombre = ?", "Superadministrador").Find(&admins).Error; err == nil {
+				var usuarioSiguiente db.Usuario
+				h.db.First(&usuarioSiguiente, notificarA)
+				nombreSiguiente := usuarioSiguiente.Nombre
+				if nombreSiguiente == "" {
+					nombreSiguiente = "Usuario Desconocido"
 				}
-				copyDocID := tarea.DocumentoRadicadoID
-				_, _ = h.notifSvc.CreateFromEvent(notificacion.CreateDTO{
-					UsuarioID:           a.ID,
-					DocumentoRadicadoID: &copyDocID,
-					Mensaje:             fmt.Sprintf("El radicado %s fue reasignado a %s", numRadicado, nombreSiguiente),
-					Estado:              "Pendiente",
-					Tipo:                "Asignacion",
-					FechaCreacion:       time.Now(),
-				})
+				for _, a := range admins {
+					if a.ID == uint(user.ID) || a.ID == notificarA {
+						continue
+					}
+					copyDocID := tarea.DocumentoRadicadoID
+					_, _ = h.notifSvc.CreateFromEvent(notificacion.CreateDTO{
+						UsuarioID:           a.ID,
+						DocumentoRadicadoID: &copyDocID,
+						Mensaje:             fmt.Sprintf("El radicado %s fue reasignado a %s", numRadicado, nombreSiguiente),
+						Estado:              "Pendiente",
+						Tipo:                "Asignacion",
+						FechaCreacion:       time.Now(),
+					})
+				}
 			}
-		}
-	} else if h.notifSvc != nil && notificarA == 0 {
-		var admins []db.Usuario
-		if err := h.db.Joins("Rol").Where("Rol.nombre = ?", "Superadministrador").Find(&admins).Error; err == nil {
-			for _, a := range admins {
-				if a.ID == uint(user.ID) {
-					continue
+
+		} else if !haySiguiente && !haySaltoDirecto {
+			// Última tarea → flujo completado, notificar admins
+			var admins []db.Usuario
+			if err := h.db.Joins("Rol").Where("Rol.nombre = ?", "Superadministrador").Find(&admins).Error; err == nil {
+				for _, a := range admins {
+					if a.ID == uint(user.ID) {
+						continue
+					}
+					copyDocID := tarea.DocumentoRadicadoID
+					_, _ = h.notifSvc.CreateFromEvent(notificacion.CreateDTO{
+						UsuarioID:           a.ID,
+						DocumentoRadicadoID: &copyDocID,
+						Mensaje:             fmt.Sprintf("El radicado %s ha finalizado su flujo automáticamente.", numRadicado),
+						Estado:              "Pendiente",
+						Tipo:                "Finalizado",
+						FechaCreacion:       time.Now(),
+					})
 				}
-				copyDocID := tarea.DocumentoRadicadoID
-				_, _ = h.notifSvc.CreateFromEvent(notificacion.CreateDTO{
-					UsuarioID:           a.ID,
-					DocumentoRadicadoID: &copyDocID,
-					Mensaje:             fmt.Sprintf("El radicado %s ha finalizado su flujo automáticamente.", numRadicado),
-					Estado:              "Pendiente",
-					Tipo:                "Finalizado",
-					FechaCreacion:       time.Now(),
-				})
 			}
 		}
 	}
@@ -317,7 +354,14 @@ func (h *Handler) Devolver(c *gin.Context) {
 		return
 	}
 
-	if tarea.UsuarioAsignadoID != user.ID && user.Rol.Nombre != "Superadministrador" && user.Rol.Nombre != "Contabilidad" {
+	asignadoValido := false
+	if tarea.UsuarioAsignadoID != nil && *tarea.UsuarioAsignadoID == user.ID {
+		asignadoValido = true
+	} else if tarea.CargoAsignadoID != nil && user.CargoID != nil && *tarea.CargoAsignadoID == *user.CargoID {
+		asignadoValido = true
+	}
+
+	if !asignadoValido && user.Rol.Nombre != "Superadministrador" && user.Rol.Nombre != "Contabilidad" {
 		c.JSON(http.StatusForbidden, gin.H{"error": "No estás asignado a esta tarea"})
 		return
 	}
@@ -390,6 +434,7 @@ func (h *Handler) Devolver(c *gin.Context) {
 	// Actualizar Radicado: mantener en proceso y cambiar responsable al destino
 	radicadoUpdates := map[string]any{
 		"usuario_actual_id": destino.UsuarioAsignadoID,
+		"cargo_actual_id":   destino.CargoAsignadoID,
 		"estado_posesion":   "EnProceso",
 	}
 	if dto.RetornoDirecto {
@@ -421,10 +466,19 @@ func (h *Handler) Devolver(c *gin.Context) {
 	})
 
 	var usuarioDestino db.Usuario
-	h.db.First(&usuarioDestino, destino.UsuarioAsignadoID)
+	if destino.UsuarioAsignadoID != nil {
+		h.db.First(&usuarioDestino, *destino.UsuarioAsignadoID)
+	}
 	nombreDestino := usuarioDestino.Nombre
 	if nombreDestino == "" {
-		nombreDestino = "Usuario Desconocido"
+		if destino.CargoAsignadoID != nil {
+			var cargoDestino db.Cargo
+			if err := h.db.First(&cargoDestino, *destino.CargoAsignadoID).Error; err == nil {
+				nombreDestino = "Cargo: " + cargoDestino.Nombre
+			}
+		} else {
+			nombreDestino = "Usuario Desconocido"
+		}
 	}
 
 	h.db.Create(&db.Trazabilidad{
@@ -442,21 +496,38 @@ func (h *Handler) Devolver(c *gin.Context) {
 		if tarea.DocumentoRadicado != nil {
 			numRad = tarea.DocumentoRadicado.NumeroRadicado
 		}
-		_, _ = h.notifSvc.CreateFromEvent(notificacion.CreateDTO{
-			UsuarioID:           destino.UsuarioAsignadoID,
-			DocumentoRadicadoID: &docID,
-			Mensaje:             fmt.Sprintf("Te devolvieron el radicado %s para revisión. Motivo: %s", numRad, dto.Observacion),
-			Estado:              "Pendiente",
-			Tipo:                "Devolucion",
-			FechaCreacion:       now,
-		})
+		if destino.UsuarioAsignadoID != nil {
+			_, _ = h.notifSvc.CreateFromEvent(notificacion.CreateDTO{
+				UsuarioID:           *destino.UsuarioAsignadoID,
+				DocumentoRadicadoID: &docID,
+				Mensaje:             fmt.Sprintf("Te devolvieron el radicado %s para revisión. Motivo: %s", numRad, dto.Observacion),
+				Estado:              "Pendiente",
+				Tipo:                "Devolucion",
+				FechaCreacion:       now,
+			})
+		} else if destino.CargoAsignadoID != nil {
+			var usuariosConCargo []db.Usuario
+			if err := h.db.Where("cargo_id = ? AND activo = ?", *destino.CargoAsignadoID, true).Find(&usuariosConCargo).Error; err == nil {
+				for _, uc := range usuariosConCargo {
+					copyDocID := docID
+					_, _ = h.notifSvc.CreateFromEvent(notificacion.CreateDTO{
+						UsuarioID:           uc.ID,
+						DocumentoRadicadoID: &copyDocID,
+						Mensaje:             fmt.Sprintf("Devolvieron el radicado %s a tu cargo para revisión. Motivo: %s", numRad, dto.Observacion),
+						Estado:              "Pendiente",
+						Tipo:                "Devolucion",
+						FechaCreacion:       now,
+					})
+				}
+			}
+		}
 
 		// Notificar también a administradores
 		var admins []db.Usuario
 		if err := h.db.Joins("Rol").Where("Rol.nombre = ?", "Superadministrador").Find(&admins).Error; err == nil {
 			for _, a := range admins {
 				// evitar notificar al usuario destino (ya notificado)
-				if a.ID == destino.UsuarioAsignadoID {
+				if destino.UsuarioAsignadoID != nil && a.ID == *destino.UsuarioAsignadoID {
 					continue
 				}
 				copyDocID := tarea.DocumentoRadicadoID

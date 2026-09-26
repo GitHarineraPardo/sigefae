@@ -111,3 +111,8 @@ func (s *Service) UpdateStatus(id uint, dto UpdateStatusDTO) (*db.NormaReparto, 
 	}
 	return &norma, nil
 }
+
+func (s *Service) Delete(id uint) error {
+	return s.db.Delete(&db.NormaReparto{}, id).Error
+}
+

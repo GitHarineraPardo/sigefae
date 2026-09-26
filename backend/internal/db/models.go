@@ -8,7 +8,7 @@ func BaseModels() []any {
 		&Pais{}, &Departamento{}, &Municipio{}, &Direccion{},
 		&TipoDocumento{}, &TipoPersona{}, &CategoriaProveedor{},
 		&ActividadEconomica{}, &Proveedor{}, &ResponsabilidadFiscal{},
-		&Contacto{}, &Rol{}, &Usuario{}, &Ruta{}, &PasoRuta{},
+		&Contacto{}, &Rol{}, &Cargo{}, &Usuario{}, &Ruta{}, &PasoRuta{},
 		&Moneda{}, &Area{}, &Receptor{}, &EstadoCorreo{},
 		&Correo{}, &ArchivoOrigen{}, &Archivo{}, &DocumentoComercial{},
 		&DetalleDocumentoComercial{}, &TipoFactura{}, &TipoPago{},

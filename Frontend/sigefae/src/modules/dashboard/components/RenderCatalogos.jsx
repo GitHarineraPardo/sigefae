@@ -3,7 +3,8 @@ import { catalogoConfig } from "../constants/catalogoConfig";
 export default function RenderCatalogos({
   catalogoActivo, setCatalogoActivo, catalogoItems, catalogoLoading,
   showCatalogoForm, setShowCatalogoForm, catalogoEditing, catalogoForm,
-  tiposPagoCatalogo, areasCatalogo, rutasCatalogo, usuariosCatalogo,
+  showDeleteConfirm, confirmDeleteCatalogo, cancelDeleteCatalogo, handleDeleteCatalogo,
+  tiposPagoCatalogo, areasCatalogo, rutasCatalogo, usuariosCatalogo, cargosCatalogo, monedasCatalogo,
   cfg, openCatalogoCreate, openCatalogoEdit, handleCatalogoFormChange,
   handleCatalogoSubmit, handleToggleCatalogoStatus
 }) {
@@ -14,6 +15,17 @@ export default function RenderCatalogos({
         <select name={field} value={value} onChange={handleCatalogoFormChange} className="doc-input"><option value="">Seleccione...</option>{tiposPagoCatalogo.map(tp => <option key={tp.id} value={tp.id}>{tp.nombre}</option>)}</select>
       </div>
     );
+    if (field === "cargo_id" || field === "cargo_aprobador_id") {
+      const label = field === "cargo_id" ? "Cargo" : "Cargo Aprobador";
+      return (
+        <div className="modal-field" key={field}><label>{label} <span className="required">*</span></label>
+          <select name={field} value={value} onChange={handleCatalogoFormChange} className="doc-input">
+            <option value="">Seleccione...</option>
+            {cargosCatalogo.map(c => <option key={c.id} value={c.id}>{c.nombre}</option>)}
+          </select>
+        </div>
+      );
+    }
     if (field === "area_id") return (
       <div className="modal-field" key={field}><label>Área <span className="required">*</span></label>
         <select name={field} value={value} onChange={handleCatalogoFormChange} className="doc-input"><option value="">Seleccione...</option>{areasCatalogo.map(a => <option key={a.id} value={a.id}>{a.nombre}</option>)}</select>
@@ -61,7 +73,7 @@ export default function RenderCatalogos({
   };
 
   const getColumnLabel = (field) => {
-    const map = { nombre: "Nombre", codigo: "Código", proyecto: "Proyecto", descripcion: "Descripción", zona: "Zona", sucursal: "Sucursal", departamento: "Depto", tipo: "Tipo", tarifa_iva: "Tarifa IVA", tipo_pago: "Tipo de Pago", area: "Área", ruta: "Ruta", orden: "Orden", usuario: "Usuario", prioridad: "Prioridad", usuario_aprobador_id: "Aprobador", moneda_id: "Moneda", monto_minimo: "Monto Mínimo", monto_minimo_smmlv: "Mín. SMMLV", monto_maximo_smmlv: "Máx. SMMLV", posicion_insercion: "Posición", ano: "Año", valor: "Valor" };
+    const map = { nombre: "Nombre", codigo: "Código", proyecto: "Proyecto", descripcion: "Descripción", zona: "Zona", sucursal: "Sucursal", departamento: "Depto", tipo: "Tipo", tarifa_iva: "Tarifa IVA", tipo_pago: "Tipo de Pago", area: "Área", ruta: "Ruta", orden: "Orden", usuario: "Usuario", cargo_id: "Cargo", prioridad: "Prioridad", cargo_aprobador_id: "Cargo Aprobador", moneda_id: "Moneda", monto_minimo: "Monto Mínimo", monto_minimo_smmlv: "Mín. SMMLV", monto_maximo_smmlv: "Máx. SMMLV", posicion_insercion: "Posición", ano: "Año", valor: "Valor" };
     return map[field] || field;
   };
 
@@ -71,6 +83,8 @@ export default function RenderCatalogos({
     if (field === "ruta_id") return item.ruta || "—";
     if (field === "usuario_id") return item.usuario || "—";
     if (field === "usuario_aprobador_id") return item.usuario_aprobador?.nombre || item.usuario_aprobador_id || "—";
+    if (field === "cargo_id") return item.cargo || "—";
+    if (field === "cargo_aprobador_id") return item.cargo_aprobador?.nombre || item.cargo_aprobador_id || "—";
     if (field === "moneda_id") return item.moneda ? `${item.moneda.nombre} (${item.moneda.codigo})` : item.moneda_id || "—";
     if (field === "monto_minimo_smmlv" || field === "monto_maximo_smmlv") return item[field] !== undefined && item[field] !== null ? `${item[field]} SMMLV` : "0 SMMLV";
     if (field === "valor") return item[field] !== undefined && item[field] !== null ? `$${Number(item[field]).toLocaleString()}` : "—";
@@ -122,7 +136,7 @@ export default function RenderCatalogos({
                     </span>
                     <div className="catalogo-actions">
                       <button className="btn-icon btn-edit" onClick={() => openCatalogoEdit(item)} title="Editar"><i className="fa-solid fa-pen" /></button>
-                      <button className={`btn-icon btn-toggle ${item.activo ? "active" : ""}`} onClick={() => handleToggleCatalogoStatus(item)} title={item.activo ? "Desactivar" : "Activar"}><i className={`fa-solid ${item.activo ? "fa-check" : "fa-xmark"}`} /></button>
+                      <button className="btn-icon btn-delete" onClick={() => confirmDeleteCatalogo(item)} title="Eliminar" style={{ color: "#ef4444", marginLeft: 4 }}><i className="fa-solid fa-xmark" /></button>
                     </div>
                   </div>
                 ))}
@@ -188,13 +202,15 @@ export default function RenderCatalogos({
                           fontSize: "0.72em", fontWeight: 700, flexShrink: 0
                         }}>{paso.orden}</span>
                         <span style={{ flex: 1, fontSize: "0.85em", color: "#1e293b" }}>{paso.nombre}</span>
-                        <span style={{ fontSize: "0.75em", color: "#6b7280", marginRight: 6 }}>{paso.usuario || "—"}</span>
+                        <span style={{ fontSize: "0.75em", color: "#6b7280", marginRight: 6 }}>
+                          {paso.usuario ? `👤 ${paso.usuario}` : paso.cargo ? `💼 ${paso.cargo}` : "—"}
+                        </span>
                         <span className={`status-badge ${paso.activo ? "radicado" : "doc-pendiente"}`} style={{ fontSize: "0.72em" }}>
                           {paso.activo ? "Activo" : "Inactivo"}
                         </span>
                         <div className="catalogo-actions">
                           <button className="btn-icon btn-edit" onClick={() => openCatalogoEdit(paso)} title="Editar"><i className="fa-solid fa-pen" /></button>
-                          <button className={`btn-icon btn-toggle ${paso.activo ? "active" : ""}`} onClick={() => handleToggleCatalogoStatus(paso)} title={paso.activo ? "Desactivar" : "Activar"}><i className={`fa-solid ${paso.activo ? "fa-check" : "fa-xmark"}`} /></button>
+                          <button className="btn-icon btn-delete" onClick={() => confirmDeleteCatalogo(paso)} title="Eliminar" style={{ color: "#ef4444", marginLeft: 4 }}><i className="fa-solid fa-xmark" /></button>
                         </div>
                       </div>
                     ))}
@@ -224,7 +240,7 @@ export default function RenderCatalogos({
                 <td>
                   <div className="catalogo-actions">
                     <button className="btn-icon btn-edit" onClick={() => openCatalogoEdit(item)} title="Editar"><i className="fa-solid fa-pen" /></button>
-                    <button className={`btn-icon btn-toggle ${item.activo ? "active" : ""}`} onClick={() => handleToggleCatalogoStatus(item)} title={item.activo ? "Desactivar" : "Activar"}><i className={`fa-solid ${item.activo ? "fa-check" : "fa-xmark"}`} /></button>
+                    <button className="btn-icon btn-delete" onClick={() => confirmDeleteCatalogo(item)} title="Eliminar" style={{ color: "#ef4444", marginLeft: 4 }}><i className="fa-solid fa-xmark" /></button>
                   </div>
                 </td>
               </tr>
@@ -267,6 +283,30 @@ export default function RenderCatalogos({
             <div className="modal-footer">
               <button className="doc-btn doc-btn-secondary" onClick={() => setShowCatalogoForm(false)}>Cancelar</button>
               <button className="doc-btn doc-btn-primary" onClick={handleCatalogoSubmit}><i className="fa-solid fa-floppy-disk" /> Guardar</button>
+            </div>
+          </div>
+        </div>
+      )}
+      {showDeleteConfirm && (
+        <div className="modal-overlay">
+          <div className="modal-content" style={{ maxWidth: "450px" }}>
+            <div className="modal-header" style={{ background: "#fee2e2", borderBottom: "1px solid #fca5a5" }}>
+              <h3 style={{ color: "#991b1b", display: "flex", alignItems: "center", gap: 8 }}>
+                <i className="fa-solid fa-triangle-exclamation" style={{ color: "#dc2626" }} />
+                Confirmar Eliminación
+              </h3>
+              <button className="modal-close" onClick={cancelDeleteCatalogo}><i className="fa-solid fa-xmark" /></button>
+            </div>
+            <div className="modal-body" style={{ padding: "20px 0" }}>
+              <p style={{ fontSize: "0.95em", color: "#374151" }}>
+                ¿Estás seguro de que deseas eliminar este registro de <strong>{cfg.label}</strong>? Esta acción aplicará una eliminación suave (soft delete).
+              </p>
+            </div>
+            <div className="modal-footer">
+              <button className="doc-btn doc-btn-secondary" onClick={cancelDeleteCatalogo}>Cancelar</button>
+              <button className="doc-btn" style={{ background: "#dc2626", color: "#fff", border: "none" }} onClick={handleDeleteCatalogo}>
+                <i className="fa-solid fa-trash" /> Eliminar
+              </button>
             </div>
           </div>
         </div>

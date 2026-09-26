@@ -39,20 +39,30 @@ func (s *Service) Create(req CreateRequest) (*Response, error) {
 	}
 
 	// ==========================
-	// Validar Usuario
+	// Validar Usuario (Opcional)
 	// ==========================
 
-	var usuario db.Usuario
+	if req.UsuarioID != nil {
+		var usuario db.Usuario
 
-	err = s.db.
-		First(&usuario, req.UsuarioID).Error
+		err = s.db.First(&usuario, *req.UsuarioID).Error
 
-	if errors.Is(err, gorm.ErrRecordNotFound) {
-		return nil, errors.New("el usuario no existe")
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, errors.New("el usuario no existe")
+		}
+
+		if err != nil {
+			return nil, err
+		}
 	}
-
-	if err != nil {
-		return nil, err
+	if req.CargoID != nil {
+		var cargo db.Cargo
+		if err := s.db.Where("activo = ?", true).First(&cargo, *req.CargoID).Error; err != nil {
+			if errors.Is(err, gorm.ErrRecordNotFound) {
+				return nil, errors.New("el cargo no existe o está inactivo")
+			}
+			return nil, err
+		}
 	}
 
 	// ==========================
@@ -80,6 +90,7 @@ func (s *Service) Create(req CreateRequest) (*Response, error) {
 		Orden:     req.Orden,
 		Nombre:    req.Nombre,
 		UsuarioID: req.UsuarioID,
+		CargoID:   req.CargoID,
 		Activo:    true,
 	}
 
@@ -95,6 +106,7 @@ func (s *Service) Create(req CreateRequest) (*Response, error) {
 		Preload("Ruta").
 		Preload("Ruta.Area").
 		Preload("Usuario").
+		Preload("Cargo").
 		First(&paso, paso.ID).Error; err != nil {
 
 		return nil, err
@@ -113,6 +125,7 @@ func (s *Service) List() ([]Response, error) {
 		Preload("Ruta").
 		Preload("Ruta.Area").
 		Preload("Usuario").
+		Preload("Cargo").
 		Order("ruta_id ASC").
 		Order("orden ASC").
 		Find(&pasos).Error; err != nil {
@@ -183,19 +196,30 @@ func (s *Service) Update(id uint, req UpdateRequest) (*Response, error) {
 	}
 
 	// ==========================
-	// Validar Usuario
+	// Validar Usuario (Opcional)
 	// ==========================
 
-	var usuario db.Usuario
+	if req.UsuarioID != nil {
+		var usuario db.Usuario
 
-	err = s.db.First(&usuario, req.UsuarioID).Error
+		err = s.db.First(&usuario, *req.UsuarioID).Error
 
-	if errors.Is(err, gorm.ErrRecordNotFound) {
-		return nil, errors.New("el usuario no existe")
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, errors.New("el usuario no existe")
+		}
+
+		if err != nil {
+			return nil, err
+		}
 	}
-
-	if err != nil {
-		return nil, err
+	if req.CargoID != nil {
+		var cargo db.Cargo
+		if err := s.db.Where("activo = ?", true).First(&cargo, *req.CargoID).Error; err != nil {
+			if errors.Is(err, gorm.ErrRecordNotFound) {
+				return nil, errors.New("el cargo no existe o está inactivo")
+			}
+			return nil, err
+		}
 	}
 
 	// ==========================
@@ -228,6 +252,7 @@ func (s *Service) Update(id uint, req UpdateRequest) (*Response, error) {
 		"orden":      req.Orden,
 		"nombre":     req.Nombre,
 		"usuario_id": req.UsuarioID,
+		"cargo_id":   req.CargoID,
 	}).Error; err != nil {
 
 		return nil, err
@@ -241,6 +266,7 @@ func (s *Service) Update(id uint, req UpdateRequest) (*Response, error) {
 		Preload("Ruta").
 		Preload("Ruta.Area").
 		Preload("Usuario").
+		Preload("Cargo").
 		First(&paso, paso.ID).Error; err != nil {
 
 		return nil, err
@@ -249,4 +275,8 @@ func (s *Service) Update(id uint, req UpdateRequest) (*Response, error) {
 	response := toResponse(paso)
 
 	return &response, nil
+}
+
+func (s *Service) Delete(id uint) error {
+	return s.db.Delete(&db.PasoRuta{}, id).Error
 }

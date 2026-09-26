@@ -1,8 +1,7 @@
 import { useState } from "react";
 import { API } from "../constants/api";
-import { isFinalState } from "../helpers/formatters";
 
-export function useCompletarTarea(obtenerToken, userId, activeTab, setTareasFlujo, setTareaDetail, setRadicadoDetail, setMisTareas, setMisTareasCompletadas, setRadicados, setSaiaRadicado) {
+export function useCompletarTarea(obtenerToken, userId, activeTab, setTareasFlujo, setTareaDetail, setRadicadoDetail, setRadicados, setSaiaRadicado, recargarTareas, sincronizarRadicado) {
   const [completandoTarea, setCompletandoTarea] = useState(false);
 
   const handleCompletarTarea = async (tareaId, radicadoId) => {
@@ -17,26 +16,21 @@ export function useCompletarTarea(obtenerToken, userId, activeTab, setTareasFluj
       if (errMsg && !errMsg.toLowerCase().includes("ya está completada")) throw new Error(errMsg);
       if (!errMsg) alert("Tarea completada correctamente");
 
-      const flujoRes = await fetch(`${API}/documentoradicado/${radicadoId}/tareas`, { headers: { Authorization: `Bearer ${obtenerToken()}` } });
+      const flujoRes = await fetch(`${API}/documentoradicado/${radicadoId}/tareas?_t=${Date.now()}`, { cache: "no-store", headers: { Authorization: `Bearer ${obtenerToken()}` } });
       const flujoData = await flujoRes.json();
       setTareasFlujo(Array.isArray(flujoData) ? flujoData : []);
 
-      const detalleRes = await fetch(`${API}/documentoradicado/${radicadoId}`, { headers: { Authorization: `Bearer ${obtenerToken()}` } });
+      const detalleRes = await fetch(`${API}/documentoradicado/${radicadoId}?_t=${Date.now()}`, { cache: "no-store", headers: { Authorization: `Bearer ${obtenerToken()}` } });
       const detalleData = await detalleRes.json();
       if (detalleData?.id) {
         if (activeTab === "tareas") setTareaDetail(detalleData);
         if (activeTab === "radicados") setRadicadoDetail(detalleData);
         if (setSaiaRadicado) setSaiaRadicado(detalleData);
+        sincronizarRadicado(detalleData);
       }
 
-      const listaRes = await fetch(`${API}/documentoradicado`, { headers: { Authorization: `Bearer ${obtenerToken()}` } });
-      const listaData = await listaRes.json();
-      if (Array.isArray(listaData)) {
-        if (activeTab === "tareas") {
-          setMisTareas(listaData.filter(r => r.usuario_actual_id === userId && !isFinalState(r.estado_posesion)));
-          setMisTareasCompletadas(listaData.filter(r => isFinalState(r.estado_posesion)));
-        } else if (activeTab === "radicados") setRadicados(listaData);
-      }
+      const listaData = await recargarTareas();
+      if (activeTab === "radicados" && Array.isArray(listaData)) setRadicados(listaData);
 
       if (!errMsg) {
         const siguiente = (Array.isArray(flujoData) ? flujoData : []).find(t => t.estado?.nombre === "En Proceso");

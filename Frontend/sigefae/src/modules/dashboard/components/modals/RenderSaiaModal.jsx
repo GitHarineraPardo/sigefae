@@ -14,7 +14,7 @@ export default function RenderSaiaModal({
   handleVerAnexo, handleDescargarAnexo, handleBorrarAnexo, handleSubirAnexo,
   completandoTarea, handleCompletarTarea,
   solicitarRechazo, marcarCompletado, adminRechazar,
-  esAdmin, esUsuario, userId, userRol,
+  esAdmin, esUsuario, userId, userRol, userCargoId,
   setPdfEditor, activeTab, setSelectedTareaId, setSelectedRadicadoId,
   setShowDevolverModal, setDevolverForm,
   openNormaModal, handleEliminarNorma, activosFijosRadicado, openActivoModal, handleEliminarActivoFijo, readOnly: externalReadOnly
@@ -231,7 +231,13 @@ export default function RenderSaiaModal({
                   )}
                   {(() => {
                     const tareaActiva = tareasFlujo.find(t => t.estado?.nombre === "En Proceso");
-                    const esResponsable = tareaActiva && (String(tareaActiva.usuario_asignado_id) === String(userId) || String(saiaRadicado.usuario_actual?.id) === String(userId));
+                    // Compare assignments by their stable database IDs.
+                    const esResponsable = tareaActiva && (
+                      Number(tareaActiva.usuario_asignado_id) === Number(userId) ||
+                      Number(saiaRadicado.usuario_actual?.id) === Number(userId) ||
+                      (Number(tareaActiva.cargo_asignado_id) > 0 && Number(tareaActiva.cargo_asignado_id) === Number(userCargoId)) ||
+                      (Number(saiaRadicado.cargo_actual_id) > 0 && Number(saiaRadicado.cargo_actual_id) === Number(userCargoId))
+                    );
                     const botones = [];
 
                     // ── Botones para el usuario responsable (Aprobador asignado) ──

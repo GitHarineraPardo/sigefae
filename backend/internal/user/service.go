@@ -57,6 +57,14 @@ func (s *Service) Create(req CreateRequest) (*Response, error) {
 		return nil, err
 	}
 
+	var cargo db.Cargo
+	if err := s.db.Where("activo = ?", true).First(&cargo, req.CargoID).Error; err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, errors.New("el cargo no existe o está inactivo")
+		}
+		return nil, err
+	}
+
 	// ==========================
 	// Hash contraseña
 	// ==========================
@@ -75,7 +83,7 @@ func (s *Service) Create(req CreateRequest) (*Response, error) {
 		Nombre:         req.Nombre,
 		Email:          req.Email,
 		HashContrasena: hash,
-		Cargo:          req.Cargo,
+		CargoID:        &req.CargoID,
 		RolID:          req.RolID,
 	}
 
@@ -89,6 +97,7 @@ func (s *Service) Create(req CreateRequest) (*Response, error) {
 
 	if err := s.db.
 		Preload("Rol").
+		Preload("Cargo").
 		First(&user, user.ID).Error; err != nil {
 		return nil, err
 	}
@@ -108,6 +117,7 @@ func (s *Service) List() ([]Response, error) {
 
 	if err := s.db.
 		Preload("Rol").
+		Preload("Cargo").
 		Order("nombre ASC").
 		Find(&users).Error; err != nil {
 
@@ -129,6 +139,7 @@ func (s *Service) GetByID(id uint) (*Response, error) {
 
 	err := s.db.
 		Preload("Rol").
+		Preload("Cargo").
 		First(&user, id).Error
 
 	if errors.Is(err, gorm.ErrRecordNotFound) {
@@ -192,9 +203,17 @@ func (s *Service) Update(id uint, req UpdateRequest) (*Response, error) {
 		return nil, err
 	}
 
+	var cargo db.Cargo
+	if err := s.db.Where("activo = ?", true).First(&cargo, req.CargoID).Error; err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, errors.New("el cargo no existe o está inactivo")
+		}
+		return nil, err
+	}
+
 	user.Nombre = req.Nombre
 	user.Email = req.Email
-	user.Cargo = req.Cargo
+	user.CargoID = &req.CargoID
 	user.RolID = req.RolID
 
 	if err := s.db.Save(&user).Error; err != nil {
@@ -203,6 +222,7 @@ func (s *Service) Update(id uint, req UpdateRequest) (*Response, error) {
 
 	if err := s.db.
 		Preload("Rol").
+		Preload("Cargo").
 		First(&user, user.ID).Error; err != nil {
 		return nil, err
 	}

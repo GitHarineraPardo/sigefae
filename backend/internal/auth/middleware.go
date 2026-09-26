@@ -54,6 +54,7 @@ func Middleware(database *gorm.DB) gin.HandlerFunc {
 
 		err = database.
 			Preload("Rol").
+			Preload("Cargo").
 			First(&user, claims.UserID).Error
 
 		if err != nil {

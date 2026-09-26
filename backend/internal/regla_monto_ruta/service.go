@@ -1,8 +1,9 @@
 package regla_monto_ruta
 
 import (
-	"gorm.io/gorm"
 	"sigefae/internal/db"
+
+	"gorm.io/gorm"
 )
 
 type Service struct {
@@ -15,7 +16,7 @@ func New(database *gorm.DB) *Service {
 
 func (s *Service) List() ([]db.ReglaMontoRuta, error) {
 	var items []db.ReglaMontoRuta
-	err := s.db.Preload("Area").Preload("Ruta").Preload("UsuarioAprobador").Preload("RolAprobador").
+	err := s.db.Preload("Area").Preload("Ruta").Preload("UsuarioAprobador").Preload("CargoAprobador").Preload("RolAprobador").
 		Where("activo = ?", true).Order("monto_minimo_smmlv ASC").Find(&items).Error
 	return items, err
 }

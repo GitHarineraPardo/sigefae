@@ -10,7 +10,7 @@ export default function RenderFlujoAprobacion({ tareasFlujo }) {
           <tbody>
             {tareasFlujo.map((t) => (
               <tr key={t.id} style={t.estado?.nombre === "En Proceso" ? { background: "rgba(44,82,130,0.05)" } : {}}>
-                <td>{t.usuario_asignado?.nombre || "—"}</td>
+                <td>{t.usuario_asignado?.nombre || (t.cargo_asignado?.nombre ? `Cargo: ${t.cargo_asignado.nombre}` : typeof t.cargo_asignado === "string" && t.cargo_asignado ? `Cargo: ${t.cargo_asignado}` : "—")}</td>
                 <td>{t.usuario_asignado?.email || "—"}</td>
                 <td>{t.descripcion}</td>
                 <td><span className={`status-badge ${t.estado?.nombre === "Completada" ? "radicado" : t.estado?.nombre === "En Proceso" ? "doc-pendiente" : t.estado?.nombre === "Devuelta" ? "doc-rechazado" : ""}`}>{t.estado?.nombre || "Pendiente"}</span></td>

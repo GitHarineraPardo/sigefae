@@ -51,7 +51,7 @@ import RenderFinanzas from "./RenderFinanzas.jsx";
 
 export default function ProcesosLogistica() {
   const [isSidebarOpen, setIsSidebarOpen] = useState(true);
-  const { userRol, userId, esAdmin, esUsuario, showDebug, puedeGestionarRecurso, obtenerToken } = useAuth();
+  const { userRol, userId, userName, userCargoId, esAdmin, esUsuario, showDebug, puedeGestionarRecurso, obtenerToken } = useAuth();
   
   const initialTab = esAdmin ? "welcome" : (userRol === "Contabilidad" || userRol === "Tesorería") ? "finanzas" : "tareas";
   const [activeTab, setActiveTab] = useState(initialTab);
@@ -70,7 +70,7 @@ export default function ProcesosLogistica() {
   const correosHook = useCorreos(obtenerToken, activeTab);
   const documentosHook = useDocumentos(obtenerToken, activeTab);
   const radicadosHook = useRadicados(obtenerToken, activeTab, userId);
-  const tareasHook = useTareas(obtenerToken, activeTab, userId);
+  const tareasHook = useTareas(obtenerToken, activeTab, userId, userCargoId);
   const catalogosHook = useCatalogos(obtenerToken, activeTab);
   const solicitudesHook = useSolicitudes(obtenerToken, activeTab, esAdmin);
 
@@ -93,7 +93,7 @@ export default function ProcesosLogistica() {
   const radicacionHook = useRadicacion(obtenerToken, userId, documentosHook.setDocumentos, setActiveTab, documentosHook.setSelectedDocId, documentosHook.setDocDetail);
 
   // Completar tarea
-  const completarHook = useCompletarTarea(obtenerToken, userId, activeTab, flujoHook.setTareasFlujo, tareasHook.setTareaDetail, radicadosHook.setRadicadoDetail, tareasHook.setMisTareas, tareasHook.setMisTareasCompletadas, radicadosHook.setRadicados, saiaHook.setSaiaRadicado);
+  const completarHook = useCompletarTarea(obtenerToken, userId, activeTab, flujoHook.setTareasFlujo, tareasHook.setTareaDetail, radicadosHook.setRadicadoDetail, radicadosHook.setRadicados, saiaHook.setSaiaRadicado, tareasHook.recargarTareas, tareasHook.sincronizarRadicado);
 
   // Acciones admin
   const accionesAdminHook = useAccionesAdmin(obtenerToken, radicadosHook.setRadicadoDetail, saiaHook.setSaiaRadicado);
@@ -278,6 +278,7 @@ export default function ProcesosLogistica() {
         esUsuario={esUsuario}
         userId={userId}
         userRol={userRol}
+        userCargoId={userCargoId}
         setPdfEditor={setPdfEditor}
         activeTab={activeTab}
         setSelectedTareaId={tareasHook.setSelectedTareaId}
