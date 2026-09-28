@@ -2,6 +2,7 @@ package user
 
 import (
 	"errors"
+	"strings"
 
 	"gorm.io/gorm"
 
@@ -21,22 +22,8 @@ func New(database *gorm.DB) *Service {
 }
 
 func (s *Service) Create(req CreateRequest) (*Response, error) {
-
-	// ==========================
-	// Validar correo
-	// ==========================
-
-	var existing db.Usuario
-
-	err := s.db.
-		Where("email = ?", req.Email).
-		First(&existing).Error
-
-	if err == nil {
-		return nil, errors.New("el correo ya existe")
-	}
-
-	if !errors.Is(err, gorm.ErrRecordNotFound) {
+	idExterno, err := s.validateExternalID(req.IDExterno, 0)
+	if err != nil {
 		return nil, err
 	}
 
@@ -82,6 +69,7 @@ func (s *Service) Create(req CreateRequest) (*Response, error) {
 	user := db.Usuario{
 		Nombre:         req.Nombre,
 		Email:          req.Email,
+		IDExterno:      idExterno,
 		HashContrasena: hash,
 		CargoID:        &req.CargoID,
 		RolID:          req.RolID,
@@ -170,20 +158,12 @@ func (s *Service) Update(id uint, req UpdateRequest) (*Response, error) {
 		return nil, err
 	}
 
-	// ==========================
-	// Validar correo repetido
-	// ==========================
-
-	var existing db.Usuario
-
-	err = s.db.
-		Where("email = ? AND id <> ?", req.Email, id).
-		First(&existing).Error
-
-	if err == nil {
-		return nil, errors.New("el correo ya existe")
-	} else if !errors.Is(err, gorm.ErrRecordNotFound) {
-		return nil, err
+	idExterno := user.IDExterno
+	if req.IDExterno != nil {
+		idExterno, err = s.validateExternalID(*req.IDExterno, id)
+		if err != nil {
+			return nil, err
+		}
 	}
 
 	// ==========================
@@ -213,6 +193,7 @@ func (s *Service) Update(id uint, req UpdateRequest) (*Response, error) {
 
 	user.Nombre = req.Nombre
 	user.Email = req.Email
+	user.IDExterno = idExterno
 	user.CargoID = &req.CargoID
 	user.RolID = req.RolID
 
@@ -230,6 +211,27 @@ func (s *Service) Update(id uint, req UpdateRequest) (*Response, error) {
 	response := toResponse(user)
 
 	return &response, nil
+}
+
+func (s *Service) validateExternalID(value string, excludeUserID uint) (*string, error) {
+	value = strings.TrimSpace(value)
+	if value == "" {
+		return nil, nil
+	}
+
+	var existing db.Usuario
+	query := s.db.Where("id_externo = ?", value)
+	if excludeUserID != 0 {
+		query = query.Where("id <> ?", excludeUserID)
+	}
+	err := query.First(&existing).Error
+	if err == nil {
+		return nil, errors.New("el ID externo ya está asociado a otro usuario")
+	}
+	if !errors.Is(err, gorm.ErrRecordNotFound) {
+		return nil, err
+	}
+	return &value, nil
 }
 
 func (s *Service) UpdateStatus(id uint, activo bool) error {

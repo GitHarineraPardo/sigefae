@@ -13,7 +13,8 @@ import (
 type Usuario struct {
 	ID             uint           `gorm:"primaryKey;column:id" json:"id"`
 	Nombre         string         `gorm:"column:nombre;type:varchar(255)" json:"nombre"`
-	Email          string         `gorm:"column:email;type:varchar(255);uniqueIndex" json:"email"`
+	Email          string         `gorm:"column:email;type:varchar(255)" json:"email"`
+	IDExterno      *string        `gorm:"column:id_externo;type:varchar(255);uniqueIndex:idx_usuario_id_externo" json:"id_externo,omitempty"`
 	HashContrasena string         `gorm:"column:contrasena;type:varchar(255)" json:"-"`
 	CargoID        *uint          `gorm:"column:cargo_id;index:idx_usuario_cargo_id" json:"cargo_id,omitempty"`
 	Cargo          *Cargo         `gorm:"foreignKey:CargoID;references:ID" json:"cargo,omitempty"`
@@ -64,4 +65,3 @@ type PasoRuta struct {
 }
 
 func (PasoRuta) TableName() string { return "paso_ruta" }
-

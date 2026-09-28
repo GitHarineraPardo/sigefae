@@ -2,6 +2,7 @@ package auth
 
 import (
 	"errors"
+	"strings"
 
 	"sigefae/internal/db"
 
@@ -18,23 +19,33 @@ func New(database *gorm.DB) *Service {
 		db: database,
 	}
 }
-func (s *Service) Login(email, password string) (*db.Usuario, string, error) {
+func (s *Service) Login(email, idExterno, password string) (*db.Usuario, string, error) {
 
 	var user db.Usuario
 
-	err := s.db.
+	query := s.db.
 		Preload("Rol").
-		Preload("Cargo").
-		Where("email = ?", email).
-		First(&user).Error
-
-	if err != nil {
-
-		if errors.Is(err, gorm.ErrRecordNotFound) {
+		Preload("Cargo")
+	if strings.TrimSpace(idExterno) != "" {
+		err := query.Where("id_externo = ?", strings.TrimSpace(idExterno)).First(&user).Error
+		if err != nil {
+			if errors.Is(err, gorm.ErrRecordNotFound) {
+				return nil, "", errors.New("correo o contraseña incorrectos")
+			}
+			return nil, "", err
+		}
+	} else {
+		var users []db.Usuario
+		if err := query.Where("email = ?", email).Find(&users).Error; err != nil {
+			return nil, "", err
+		}
+		if len(users) == 0 {
 			return nil, "", errors.New("correo o contraseña incorrectos")
 		}
-
-		return nil, "", err
+		if len(users) > 1 {
+			return nil, "", errors.New("el correo identifica varias cuentas; inicie sesión con su ID externo")
+		}
+		user = users[0]
 	}
 
 	if !user.Activo {
@@ -57,13 +68,13 @@ func (s *Service) Login(email, password string) (*db.Usuario, string, error) {
 	return &user, token, nil
 }
 
-func (s *Service) SSOLogin(identifier string) (*db.Usuario, string, error) {
+func (s *Service) SSOLogin(idExterno string) (*db.Usuario, string, error) {
 	var user db.Usuario
 
 	err := s.db.
 		Preload("Rol").
 		Preload("Cargo").
-		Where("email = ? OR nombre = ?", identifier, identifier).
+		Where("id_externo = ?", strings.TrimSpace(idExterno)).
 		First(&user).Error
 
 	if err != nil {

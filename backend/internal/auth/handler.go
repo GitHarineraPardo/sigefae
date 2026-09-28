@@ -1,7 +1,10 @@
 package auth
 
 import (
+	"encoding/json"
+	"fmt"
 	"net/http"
+	"strings"
 
 	"sigefae/internal/db"
 
@@ -20,8 +23,9 @@ func NewHandler(service *Service) *Handler {
 }
 
 type LoginRequest struct {
-	Email    string `json:"email" binding:"required,email"`
-	Password string `json:"password" binding:"required"`
+	Email     string `json:"email" binding:"omitempty,email"`
+	IDExterno string `json:"id_externo"`
+	Password  string `json:"password" binding:"required"`
 }
 
 type LoginResponse struct {
@@ -50,9 +54,14 @@ func (h *Handler) Login(c *gin.Context) {
 
 		return
 	}
+	if request.Email == "" && request.IDExterno == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "email o id_externo es requerido"})
+		return
+	}
 
 	user, token, err := h.service.Login(
 		request.Email,
+		request.IDExterno,
 		request.Password,
 	)
 
@@ -84,8 +93,26 @@ func (h *Handler) Login(c *gin.Context) {
 }
 
 type SSORequest struct {
-	Identifier string `json:"identifier" binding:"required"`
-	Secret     string `json:"secret" binding:"required"`
+	IDExterno  externalID `json:"id_externo"`
+	Identifier externalID `json:"identifier"`
+	Secret     string     `json:"secret" binding:"required"`
+}
+
+type externalID string
+
+func (id *externalID) UnmarshalJSON(data []byte) error {
+	var value string
+	if err := json.Unmarshal(data, &value); err == nil {
+		*id = externalID(value)
+		return nil
+	}
+
+	var number json.Number
+	if err := json.Unmarshal(data, &number); err != nil {
+		return fmt.Errorf("el ID externo debe ser texto o número")
+	}
+	*id = externalID(number.String())
+	return nil
 }
 
 func (h *Handler) SSO(c *gin.Context) {
@@ -95,6 +122,14 @@ func (h *Handler) SSO(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
+	idExterno := string(request.IDExterno)
+	if strings.TrimSpace(idExterno) == "" {
+		idExterno = string(request.Identifier)
+	}
+	if strings.TrimSpace(idExterno) == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "id_externo es requerido"})
+		return
+	}
 
 	// Secret validation (you can change this string or move to env vars)
 	if request.Secret != "SIGEFAE_INTERNAL_SSO_SECRET_2026" {
@@ -102,7 +137,7 @@ func (h *Handler) SSO(c *gin.Context) {
 		return
 	}
 
-	user, token, err := h.service.SSOLogin(request.Identifier)
+	user, token, err := h.service.SSOLogin(idExterno)
 	if err != nil {
 		c.JSON(http.StatusUnauthorized, gin.H{"error": err.Error()})
 		return

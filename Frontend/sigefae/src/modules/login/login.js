@@ -1,6 +1,6 @@
 import { API } from "../dashboard/constants/api.js";
 
-export async function login(email, password) {
+export async function login(email, password, idExterno) {
 
     const response = await fetch(`${API}/auth/login`, {
 
@@ -11,7 +11,8 @@ export async function login(email, password) {
         },
 
         body: JSON.stringify({
-            email,
+            ...(email ? { email } : {}),
+            ...(idExterno ? { id_externo: idExterno } : {}),
             password
         })
 

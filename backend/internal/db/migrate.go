@@ -25,6 +25,9 @@ func Migrate() error {
 	if err := DB.AutoMigrate(BaseModels()...); err != nil {
 		return err
 	}
+	if err := MigrateUsuarioEmailIndex(DB); err != nil {
+		return err
+	}
 	if err := DB.AutoMigrate(CircularModels()...); err != nil {
 		return err
 	}

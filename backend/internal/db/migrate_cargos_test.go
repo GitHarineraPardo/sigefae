@@ -100,3 +100,46 @@ func TestMigrateCargoIDsBackfillsLegacyValuesIdempotently(t *testing.T) {
 		t.Fatalf("trimmed cargo name = %q", cargo.Nombre)
 	}
 }
+
+type legacyUsuarioEmail struct {
+	ID    uint   `gorm:"primaryKey"`
+	Email string `gorm:"uniqueIndex"`
+}
+
+func (legacyUsuarioEmail) TableName() string { return "usuario" }
+
+func TestMigrateUsuarioEmailIndexAllowsDuplicateEmails(t *testing.T) {
+	database, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := database.AutoMigrate(&legacyUsuarioEmail{}); err != nil {
+		t.Fatal(err)
+	}
+	if err := MigrateUsuarioEmailIndex(database); err != nil {
+		t.Fatal(err)
+	}
+
+	if err := database.AutoMigrate(&Usuario{}); err != nil {
+		t.Fatal(err)
+	}
+	users := []Usuario{
+		{Nombre: "Persona A", Email: "compartido@example.com"},
+		{Nombre: "Persona B", Email: "compartido@example.com"},
+	}
+	if err := database.Create(&users).Error; err != nil {
+		t.Fatalf("duplicate email should be allowed: %v", err)
+	}
+
+	idA := "erp-101"
+	idB := "erp-102"
+	users[0].IDExterno = &idA
+	users[1].IDExterno = &idA
+	if err := database.Create(&users).Error; err == nil {
+		t.Fatal("duplicate external ID should be rejected")
+	}
+	users[1].IDExterno = &idB
+	if err := database.Save(&users[1]).Error; err != nil {
+		t.Fatalf("distinct external ID should be allowed: %v", err)
+	}
+}
