@@ -53,6 +53,12 @@
   background: #334155;
 }
 
+.pdf-pagination span {
+  color: #fff;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
 .btn-save-pdf {
   background: #16a34a !important;
   color: #fff !important;
@@ -141,13 +147,17 @@
   display: block;
 }
 
+.pdf-annotation-text {
+  min-width: 0;
+  min-height: 0;
+}
+
 .ann-text-content {
-  font-size: 16px;
   font-weight: 600;
-  white-space: nowrap;
+  white-space: pre-line;
   pointer-events: none;
   text-shadow: 0 0 4px rgba(255,255,255,0.95), 0 0 2px rgba(255,255,255,0.95);
-  line-height: 1;
+  line-height: 1.2;
   padding: 2px 4px;
 }
 
@@ -222,6 +232,22 @@
   border: 1px solid #cbd5e1;
   border-radius: 6px;
   font-size: 0.95rem;
+}
+
+.text-size-field {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  color: #334155;
+  font-size: 0.9rem;
+}
+
+.text-size-field input {
+  width: 88px;
+  padding: 7px 8px;
+  border: 1px solid #cbd5e1;
+  border-radius: 6px;
+  font: inherit;
 }
 
 .color-row {

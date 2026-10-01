@@ -123,7 +123,7 @@ export function useNormasReparto(
       const totalNormas = (normasRepartoRadicado || []).reduce((sum, n) => sum + (parseFloat(n.porcentaje) || 0), 0);
       const totalActivos = nuevosActivos.reduce((sum, a) => sum + (parseFloat(a.porcentaje) || 0), 0);
       const granTotal = totalNormas + totalActivos;
-      if (granTotal > 100.01) {
+      if (granTotal > 100) {
         alert(`La suma total de normas de reparto (${totalNormas.toFixed(2)}%) y activos fijos (${totalActivos.toFixed(2)}%) no puede superar el 100% total. Sumaría ${granTotal.toFixed(2)}%.`);
         return;
       }
@@ -219,7 +219,7 @@ export function useNormasReparto(
       const totalNormas = nuevasNormas.reduce((sum, n) => sum + (parseFloat(n.porcentaje) || 0), 0);
       const totalActivos = (activosFijosRadicado || []).reduce((sum, a) => sum + (parseFloat(a.porcentaje) || 0), 0);
       const granTotal = totalNormas + totalActivos;
-      if (granTotal > 100.01) {
+      if (granTotal > 100) {
         alert(`La suma total de normas de reparto (${totalNormas.toFixed(2)}%) y activos fijos (${totalActivos.toFixed(2)}%) no puede superar el 100% total. Sumaría ${granTotal.toFixed(2)}%.`);
         return;
       }

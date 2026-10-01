@@ -62,8 +62,8 @@ export default function ModalRadicar({
     }
   };
 
-  const estaExacto100 = Math.abs(totalPorcentajeCombinado - 100) < 0.01;
-  const excede100 = totalPorcentajeCombinado > 100.01;
+  const estaEnTope = Math.abs(totalPorcentajeCombinado - 100) < 0.01;
+  const excede100 = totalPorcentajeCombinado > 100;
 
   return (
     <div className="modal-overlay" onClick={() => setShowRadicarModal(false)}>
@@ -209,21 +209,23 @@ export default function ModalRadicar({
           {/* ── BARRA RESUMEN DE PORCENTAJE COMBINADO ── */}
           <div style={{
             padding: "10px 14px", borderRadius: 8, marginBottom: "16px",
-            background: excede100 ? "#fee2e2" : estaExacto100 ? "#d1fae5" : "#f1f5f9",
-            border: `1px solid ${excede100 ? "#fca5a5" : estaExacto100 ? "#6ee7b7" : "#cbd5e1"}`,
+            background: excede100 ? "#fee2e2" : "#f1f5f9",
+            border: `1px solid ${excede100 ? "#fca5a5" : "#cbd5e1"}`,
             display: "flex", justifyContent: "space-between", alignItems: "center"
           }}>
             <div>
-              <span style={{ fontSize: "0.85em", fontWeight: 700, color: excede100 ? "#991b1b" : estaExacto100 ? "#065f46" : "#334155" }}>
-                <i className={`fa-solid ${excede100 ? "fa-circle-exclamation" : estaExacto100 ? "fa-check-circle" : "fa-chart-pie"}`} style={{ marginRight: 6 }}></i>
+              <span style={{ fontSize: "0.85em", fontWeight: 700, color: excede100 ? "#991b1b" : "#334155" }}>
+                <i className={`fa-solid ${excede100 ? "fa-circle-exclamation" : "fa-chart-pie"}`} style={{ marginRight: 6 }}></i>
                 Total Asignado (Normas {totalPorcentajeNormas.toFixed(2)}% + Activos {totalPorcentajeActivos.toFixed(2)}%)
               </span>
             </div>
             <span style={{
               fontSize: "0.95em", fontWeight: 800,
-              color: excede100 ? "#dc2626" : estaExacto100 ? "#059669" : "#0284c7"
+              color: excede100 ? "#dc2626" : "#334155"
             }}>
-              {totalPorcentajeCombinado.toFixed(2)}%{subtotalDoc > 0 && ` (${formatCurrency((totalPorcentajeCombinado / 100) * subtotalDoc)})`} / 100%
+              {totalPorcentajeCombinado.toFixed(2)}%{subtotalDoc > 0 && ` (${formatCurrency((totalPorcentajeCombinado / 100) * subtotalDoc)})`}
+              {excede100 ? " (supera el máximo)" : ` (disponible: ${Math.max(0, 100 - totalPorcentajeCombinado).toFixed(2)}%)`}
+              {estaEnTope && !excede100 ? " (máximo asignado)" : ""}
             </span>
           </div>
 

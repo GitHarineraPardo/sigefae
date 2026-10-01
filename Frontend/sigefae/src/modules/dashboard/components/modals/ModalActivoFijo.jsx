@@ -144,9 +144,9 @@ export default function ModalActivoFijo({
             </div>
           </div>
 
-          <p style={{ fontSize: "0.8em", color: "#64748b", marginTop: 10, padding: "8px 10px", background: "#f0fdf4", borderRadius: 6, border: "1px solid #bbf7d0" }}>
-            <i className="fa-solid fa-triangle-exclamation" style={{ color: "#16a34a" }}></i>{" "}
-            La suma de <strong>Normas de Reparto + Activos Fijos</strong> debe ser <strong>100%</strong> al guardar.
+          <p style={{ fontSize: "0.8em", color: "#334155", marginTop: 10, padding: "8px 10px", background: "#f1f5f9", borderRadius: 6, border: "1px solid #cbd5e1" }}>
+            <i className="fa-solid fa-circle-info" style={{ color: "#2563eb" }}></i>{" "}
+            La suma de <strong>Normas de Reparto + Activos Fijos</strong> puede ser menor a 100%, pero no puede superarlo.
           </p>
         </div>
         <div className="modal-footer">

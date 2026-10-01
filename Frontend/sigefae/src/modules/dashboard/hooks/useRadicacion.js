@@ -184,7 +184,7 @@ export function useRadicacion(obtenerToken, userId, setDocumentos, setActiveTab,
     if (subtotalDoc > 0 && val > subtotalDoc) { alert("El valor no puede superar el subtotal"); return; }
 
     // VALIDACIÓN ESTRICTA DE MÁXIMO 100% COMBINADO
-    if (totalPorcentajeCombinado + pct > 100.01) {
+    if (totalPorcentajeCombinado + pct > 100) {
       alert(`No se puede superar el 100% total. Actualmente la suma es ${totalPorcentajeCombinado.toFixed(2)}% y estás intentando agregar ${pct.toFixed(2)}%.`);
       return;
     }
@@ -242,7 +242,7 @@ export function useRadicacion(obtenerToken, userId, setDocumentos, setActiveTab,
     if (isNaN(pct) || pct <= 0) { alert("Porcentaje de activo fijo inválido"); return; }
 
     // VALIDACIÓN ESTRICTA DE MÁXIMO 100% COMBINADO
-    if (totalPorcentajeCombinado + pct > 100.01) {
+    if (totalPorcentajeCombinado + pct > 100) {
       alert(`No se puede superar el 100% total. Actualmente la suma es ${totalPorcentajeCombinado.toFixed(2)}% y estás intentando agregar ${pct.toFixed(2)}%.`);
       return;
     }
@@ -290,7 +290,7 @@ export function useRadicacion(obtenerToken, userId, setDocumentos, setActiveTab,
       alert("Debe seleccionar tipo de radicación, ruta y método de pago."); return;
     }
 
-    if (totalPorcentajeCombinado > 100.01) {
+    if (totalPorcentajeCombinado > 100) {
       alert(`El total asignado (${totalPorcentajeCombinado.toFixed(2)}%) no puede superar el 100%.`);
       return;
     }

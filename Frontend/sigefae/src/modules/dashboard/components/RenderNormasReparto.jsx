@@ -13,7 +13,7 @@ export default function RenderNormasReparto({
   const totalNormasPct = normas.reduce((s, n) => s + (parseFloat(n.porcentaje) || 0), 0);
   const totalActivosPct = activos.reduce((s, a) => s + (parseFloat(a.porcentaje) || 0), 0);
   const totalPct = totalNormasPct + totalActivosPct;
-  const estaCompleto = (normas.length > 0 || activos.length > 0) && Math.abs(totalPct - 100) < 0.01;
+  const excede100 = totalPct > 100;
 
   return (
     <div>
@@ -166,22 +166,22 @@ export default function RenderNormasReparto({
         <div style={{
           marginTop: 10,
           padding: "10px 14px",
-          background: estaCompleto ? "#d1fae5" : "#fef3c7",
+          background: excede100 ? "#fee2e2" : "#f1f5f9",
           borderRadius: 8,
           display: "flex",
           justifyContent: "space-between",
           alignItems: "center",
           fontSize: "0.9em",
           fontWeight: 700,
-          color: estaCompleto ? "#065f46" : "#92400e",
-          border: `1px solid ${estaCompleto ? "#a7f3d0" : "#fde68a"}`
+          color: excede100 ? "#991b1b" : "#334155",
+          border: `1px solid ${excede100 ? "#fca5a5" : "#cbd5e1"}`
         }}>
           <span>
-            <i className={`fa-solid ${estaCompleto ? "fa-check-circle" : "fa-triangle-exclamation"}`} style={{ marginRight: 6 }}></i>
+            <i className={`fa-solid ${excede100 ? "fa-triangle-exclamation" : "fa-chart-pie"}`} style={{ marginRight: 6 }}></i>
             Total (Normas {totalNormasPct.toFixed(2)}% + Activos {totalActivosPct.toFixed(2)}%)
             {subtotal > 0 && ` — ${formatCurrency((totalPct / 100) * subtotal)} de ${formatCurrency(subtotal)}`}
           </span>
-          <span>{totalPct.toFixed(2)} % {estaCompleto ? "(Completo)" : `(Faltan ${(100 - totalPct).toFixed(2)} %)`}</span>
+          <span>{totalPct.toFixed(2)} % {excede100 ? `(Supera el máximo por ${(totalPct - 100).toFixed(2)} %)` : `(Disponible: ${(100 - totalPct).toFixed(2)} %)`}</span>
         </div>
       )}
     </div>

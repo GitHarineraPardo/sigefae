@@ -81,7 +81,9 @@ export default function PdfEditor({ archivoId, archivoNombre, radicadoId, onClos
   const [showSigModal, setShowSigModal] = useState(false);
   const [textValue, setTextValue] = useState("");
   const [textColor, setTextColor] = useState("#000000");
+  const [textSize, setTextSize] = useState(16);
   const [tempPos, setTempPos] = useState(null);
+  const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
 
   const [customStamp, setCustomStamp] = useState(loadStampFromStorage); // { dataUrl, bytes, mimeType }
   const [customSignature, setCustomSignature] = useState(loadSignatureFromStorage); // { dataUrl, bytes, mimeType }
@@ -106,21 +108,35 @@ export default function PdfEditor({ archivoId, archivoNombre, radicadoId, onClos
     let cancelled = false;
 
     const load = async () => {
-      const res = await fetch(`${API}/archivo/${archivoId}/download?t=${Date.now()}`, {
-        headers: { Authorization: `Bearer ${obtenerToken()}` },
-      });
-      const buf = await res.arrayBuffer();
-      if (cancelled) return;
+      try {
+        const res = await fetch(`${API}/archivo/${archivoId}/download?t=${Date.now()}`, {
+          headers: { Authorization: `Bearer ${obtenerToken()}` },
+        });
+        if (!res.ok) {
+          const errorData = await res.json().catch(() => null);
+          const message = res.status === 404
+            ? "No se encontró el archivo PDF solicitado. Verifica que el archivo siga disponible."
+            : errorData?.error || `No se pudo cargar el PDF (HTTP ${res.status}).`;
+          throw new Error(message);
+        }
+        const buf = await res.arrayBuffer();
+        if (cancelled) return;
 
-      setPdfBytes(new Uint8Array(buf)); // Uint8Array nunca se transfiere/consume
+        setPdfBytes(new Uint8Array(buf)); // Uint8Array nunca se transfiere/consume
 
-      // pdf.js necesita su propia copia del buffer (lo consume internamente)
-      const pdf = await pdfjsLib.getDocument({ data: buf.slice(0) }).promise;
-      if (cancelled) return;
-      pdfDocRef.current = pdf;
-      setNumPages(pdf.numPages);
+        // pdf.js necesita su propia copia del buffer (lo consume internamente)
+        const pdf = await pdfjsLib.getDocument({ data: buf.slice(0) }).promise;
+        if (cancelled) return;
+        pdfDocRef.current = pdf;
+        setNumPages(pdf.numPages);
 
-      await renderPage(1);
+        await renderPage(1);
+      } catch (error) {
+        if (!cancelled) {
+          console.error("No se pudo abrir el PDF:", error);
+          alert(error.message || "No se pudo abrir el PDF.");
+        }
+      }
     };
 
     load();
@@ -184,11 +200,23 @@ export default function PdfEditor({ archivoId, archivoNombre, radicadoId, onClos
         setAnnotations((prev) =>
           prev.map((a) =>
             a.id === resizing.id
-              ? {
-                  ...a,
-                  width: Math.max(60, resizing.startW + dx),
-                  height: Math.max(50, resizing.startH + dy),
-                }
+              ? a.type === "text"
+                ? (() => {
+                    const scaleX = Math.max(0.25, (resizing.startW + dx) / resizing.startW);
+                    const scaleY = Math.max(0.25, (resizing.startH + dy) / resizing.startH);
+                    const scale = Math.min(6, (scaleX + scaleY) / 2);
+                    return {
+                      ...a,
+                      fontSize: Math.max(6, Math.min(200, resizing.startFontSize * scale)),
+                      width: Math.max(40, resizing.startW * scale),
+                      height: Math.max(16, resizing.startH * scale),
+                    };
+                  })()
+                : {
+                    ...a,
+                    width: Math.max(60, resizing.startW + dx),
+                    height: Math.max(50, resizing.startH + dy),
+                  }
               : a
           )
         );
@@ -257,6 +285,7 @@ export default function PdfEditor({ archivoId, archivoNombre, radicadoId, onClos
       type: "text",
       text: fecha,
       color: "#374151",
+      fontSize: 14,
       x: pos.x,
       y: pos.y + sigHeight + 4, // justo debajo de la firma
       width: sigWidth,
@@ -313,6 +342,12 @@ export default function PdfEditor({ archivoId, archivoNombre, radicadoId, onClos
 
   const confirmText = () => {
     if (!textValue.trim()) return;
+    const fontSize = Math.min(96, Math.max(8, Number(textSize) || 16));
+    const measureCanvas = document.createElement("canvas");
+    const context = measureCanvas.getContext("2d");
+    context.font = `600 ${fontSize}px sans-serif`;
+    const lines = textValue.split("\n");
+    const width = Math.max(...lines.map((line) => context.measureText(line).width)) + 8;
     setAnnotations((prev) => [
       ...prev,
       {
@@ -320,16 +355,124 @@ export default function PdfEditor({ archivoId, archivoNombre, radicadoId, onClos
         type: "text",
         text: textValue,
         color: textColor,
+        fontSize,
         x: tempPos.x,
         y: tempPos.y,
-        width: Math.max(200, textValue.length * 9),
-        height: 36,
+        width: Math.max(60, width),
+        height: fontSize * 1.4 * lines.length,
         page: currentPage,
       },
     ]);
     setShowTextModal(false);
     setTool(null);
     setTextValue("");
+  };
+
+  const getPastePosition = useCallback((width, height) => ({
+    x: Math.max(0, ((canvasRef.current?.width || pageSize.w * renderScale) - width) / 2),
+    y: Math.max(0, ((canvasRef.current?.height || pageSize.h * renderScale) - height) / 2),
+  }), [pageSize, renderScale]);
+
+  useEffect(() => {
+    const handlePaste = async (event) => {
+      const activeElement = document.activeElement;
+      if (activeElement?.matches("input, textarea, [contenteditable='true']")) return;
+
+      const imageItem = Array.from(event.clipboardData?.items || []).find(
+        (item) => item.kind === "file" && item.type.startsWith("image/")
+      );
+
+      if (imageItem) {
+        const imageFile = imageItem.getAsFile();
+        if (!imageFile) return;
+        event.preventDefault();
+        try {
+          const bitmap = await createImageBitmap(imageFile);
+          const imageScale = Math.min(1, 240 / bitmap.width, 180 / bitmap.height);
+          const width = bitmap.width * imageScale;
+          const height = bitmap.height * imageScale;
+          const exportScale = Math.min(1, 2400 / bitmap.width, 2400 / bitmap.height);
+          const imageCanvas = document.createElement("canvas");
+          imageCanvas.width = Math.max(1, Math.round(bitmap.width * exportScale));
+          imageCanvas.height = Math.max(1, Math.round(bitmap.height * exportScale));
+          imageCanvas.getContext("2d").drawImage(bitmap, 0, 0, imageCanvas.width, imageCanvas.height);
+          bitmap.close();
+          const dataUrl = imageCanvas.toDataURL("image/png");
+          const pos = getPastePosition(width, height);
+          const imageBytes = Uint8Array.from(atob(dataUrl.split(",")[1]), (character) => character.charCodeAt(0));
+          setAnnotations((prev) => [...prev, {
+            id: Date.now(),
+            type: "image",
+            imageBytes,
+            imageDataUrl: dataUrl,
+            imageMime: "image/png",
+            x: pos.x,
+            y: pos.y,
+            width,
+            height,
+            page: currentPage,
+          }]);
+          setHasUnsavedChanges(true);
+        } catch (error) {
+          console.error("No se pudo pegar la imagen:", error);
+          alert("No se pudo pegar esta imagen en el PDF.");
+        }
+        return;
+      }
+
+      const pastedText = event.clipboardData?.getData("text/plain");
+      if (!pastedText?.trim()) return;
+      event.preventDefault();
+      const fontSize = Math.min(96, Math.max(8, Number(textSize) || 16));
+      const context = document.createElement("canvas").getContext("2d");
+      context.font = `600 ${fontSize}px sans-serif`;
+      const lines = pastedText.split("\n");
+      const width = Math.max(...lines.map((line) => context.measureText(line).width)) + 8;
+      const height = fontSize * 1.4 * lines.length;
+      const pos = getPastePosition(width, height);
+      setAnnotations((prev) => [...prev, {
+        id: Date.now(),
+        type: "text",
+        text: pastedText,
+        color: textColor,
+        fontSize,
+        x: pos.x,
+        y: pos.y,
+        width: Math.max(60, width),
+        height,
+        page: currentPage,
+      }]);
+      setHasUnsavedChanges(true);
+    };
+
+    window.addEventListener("paste", handlePaste);
+    return () => window.removeEventListener("paste", handlePaste);
+  }, [currentPage, getPastePosition, textColor, textSize]);
+
+  const addBlankPage = async () => {
+    if (!pdfBytes) return;
+    if (!window.confirm("¿Quieres añadir una hoja en blanco al PDF?")) return;
+    try {
+      const doc = await PDFDocument.load(pdfBytes);
+      const lastPageSize = doc.getPages().at(-1).getSize();
+      doc.addPage([lastPageSize.width, lastPageSize.height]);
+      const newBytes = await doc.save();
+      const previousPdf = pdfDocRef.current;
+      if (typeof previousPdf?.destroy === "function") {
+        await previousPdf.destroy();
+      }
+      const pdf = await pdfjsLib.getDocument({ data: newBytes.slice(0) }).promise;
+      pdfDocRef.current = pdf;
+      const newPage = pdf.numPages;
+      setPdfBytes(new Uint8Array(newBytes));
+      setNumPages(newPage);
+      setCurrentPage(newPage);
+      setHasUnsavedChanges(true);
+      await renderPage(newPage);
+    } catch (error) {
+      console.error(error);
+      alert("No se pudo añadir una página en blanco.");
+    }
   };
 
   const confirmSignature = () => {
@@ -382,11 +525,12 @@ export default function PdfEditor({ archivoId, archivoNombre, radicadoId, onClos
       startY: e.clientY,
       startW: ann.width,
       startH: ann.height,
+      startFontSize: ann.fontSize || 16,
     });
   };
 
   const applyChanges = async () => {
-    if (!pdfBytes || annotations.length === 0) {
+    if (!pdfBytes || (annotations.length === 0 && !hasUnsavedChanges)) {
       alert("No hay cambios para aplicar");
       return;
     }
@@ -402,13 +546,14 @@ export default function PdfEditor({ archivoId, archivoNombre, radicadoId, onClos
         const pdfY = pdfH - (ann.y + ann.height) * scale;
 
     if (ann.type === "text") {
-      const fontSize = Math.round(ann.height * scale * 0.8);
+      const fontSize = ann.fontSize / renderScale;
       page.drawText(ann.text, {
-        x: pdfX, y: pdfY,
-        size: Math.max(8, fontSize),
+        x: pdfX, y: pdfY + fontSize * 0.2,
+        size: fontSize,
+        lineHeight: fontSize * 1.4,
         font, color: hexToRgb(ann.color),
       });
-    } else if ((ann.type === "signature" || ann.type === "stamp") && ann.imageBytes) {
+    } else if (["signature", "stamp", "image"].includes(ann.type) && ann.imageBytes) {
       const mime = ann.imageMime || "image/png";
       const img = mime.includes("jpeg") || mime.includes("jpg")
         ? await doc.embedJpg(ann.imageBytes)
@@ -428,6 +573,7 @@ export default function PdfEditor({ archivoId, archivoNombre, radicadoId, onClos
       // sucesivas no sobreescriban con el original.
       setPdfBytes(new Uint8Array(newBytes));
       setAnnotations([]);
+      setHasUnsavedChanges(false);
 
       const blob = new Blob([newBytes], { type: "application/pdf" });
       const formData = new FormData();
@@ -553,6 +699,10 @@ export default function PdfEditor({ archivoId, archivoNombre, radicadoId, onClos
             </div>
           )}
 
+          <button type="button" onClick={addBlankPage} title="Añadir una hoja en blanco">
+            <i className="fa-solid fa-file-circle-plus"></i> Añadir hoja
+          </button>
+
           <div style={{ flex: 1 }} />
 
           <button className="btn-save-pdf" onClick={applyChanges}>
@@ -584,7 +734,7 @@ export default function PdfEditor({ archivoId, archivoNombre, radicadoId, onClos
             {annotations.filter(ann => ann.page === currentPage).map((ann) => (
               <div
                 key={ann.id}
-                className="pdf-annotation"
+                className={`pdf-annotation ${ann.type === "text" ? "pdf-annotation-text" : ""}`}
                 style={{
                   left: ann.x,
                   top: ann.y,
@@ -595,9 +745,9 @@ export default function PdfEditor({ archivoId, archivoNombre, radicadoId, onClos
                 onMouseDown={(e) => startDrag(e, ann.id)}
               >
                 {ann.type === "text" && (
-                  <span className="ann-text-content">{ann.text}</span>
+                  <span className="ann-text-content" style={{ fontSize: ann.fontSize }}>{ann.text}</span>
                 )}
-                {(ann.type === "signature" || ann.type === "stamp") && (
+                {["signature", "stamp", "image"].includes(ann.type) && (
                   <img
                     src={ann.imageDataUrl}
                     alt={ann.type}
@@ -633,6 +783,16 @@ export default function PdfEditor({ archivoId, archivoNombre, radicadoId, onClos
               onChange={(e) => setTextValue(e.target.value)}
               placeholder="Escribe aquí..."
             />
+            <label className="text-size-field">
+              Tamaño (px):
+              <input
+                type="number"
+                min="8"
+                max="96"
+                value={textSize}
+                onChange={(e) => setTextSize(e.target.value)}
+              />
+            </label>
             <div className="color-row">
               <label>Color:</label>
               <input
