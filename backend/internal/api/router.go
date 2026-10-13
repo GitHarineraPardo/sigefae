@@ -27,6 +27,7 @@ import (
 	"sigefae/internal/estado_correo"
 	"sigefae/internal/estado_documento_radicado"
 	"sigefae/internal/estado_tarea"
+	"sigefae/internal/gasto_proveedor"
 	"sigefae/internal/metodo_pago"
 	"sigefae/internal/moneda"
 	"sigefae/internal/municipio"
@@ -246,6 +247,9 @@ func New(database *gorm.DB) *gin.Engine {
 	cargoService := cargo.New(database)
 	cargoHandler := cargo.NewHandler(cargoService)
 
+	gastoProveedorService := gasto_proveedor.New(database)
+	gastoProveedorHandler := gasto_proveedor.NewHandler(gastoProveedorService)
+
 	api := router.Group("/api")
 	{
 		api.POST("/auth/login", authHandler.Login)
@@ -303,6 +307,7 @@ protected.GET("/documentoradicado/mis-tareas", documentoRadicadoHandler.ListMisT
 		protected.GET("/normas-reparto/:id", normaRepartoHandler.GetByID)
 		protected.GET("/proyectos", proyectoHandler.List)
 		protected.GET("/cargos/activos", cargoHandler.ListActivos)
+		protected.GET("/gastos-proveedor", gastoProveedorHandler.GetGastos)
 		// =========================
 		// Notificacion (usuario logueado)
 		// =========================

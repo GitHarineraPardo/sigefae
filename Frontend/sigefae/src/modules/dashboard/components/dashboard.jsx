@@ -29,6 +29,7 @@ import { useCompletarTarea } from "../hooks/useCompletarTarea.js";
 import { useAccionesAdmin } from "../hooks/useAccionesAdmin.js";
 import { usePdfExpediente } from "../hooks/usePdfExpediente.js";
 import { useFinanzas } from "../hooks/useFinanzas.js";
+import { useGastosProveedor } from "../hooks/useGastosProveedor.js";
 import { useNotificaciones } from "../../../hooks/useNotificaciones.js";
 
 // Components
@@ -48,10 +49,11 @@ import ModalDevolver from "./modals/ModalDevolver.jsx";
 import ModalNormaReparto from "./modals/ModalNormaReparto.jsx";
 import ModalActivoFijo from "./modals/ModalActivoFijo.jsx";
 import RenderFinanzas from "./RenderFinanzas.jsx";
+import RenderGastosProveedor from "./RenderGastosProveedor.jsx";
 
 export default function ProcesosLogistica() {
   const [isSidebarOpen, setIsSidebarOpen] = useState(true);
-  const { userRol, userId, userName, userCargoId, esAdmin, esUsuario, showDebug, puedeGestionarRecurso, obtenerToken } = useAuth();
+  const { userRol, userId, userName, userCargo, userCargoId, esAdmin, esUsuario, showDebug, puedeGestionarRecurso, obtenerToken } = useAuth();
   
   const initialTab = esAdmin ? "welcome" : (userRol === "Contabilidad" || userRol === "Tesorería") ? "finanzas" : "tareas";
   const [activeTab, setActiveTab] = useState(initialTab);
@@ -104,6 +106,9 @@ export default function ProcesosLogistica() {
   // Finanzas
   const finanzasHook = useFinanzas(obtenerToken, radicadosHook);
 
+  // Gastos por Proveedor
+  const gastosHook = useGastosProveedor(obtenerToken, activeTab, userCargoId, esAdmin);
+
   // Notificaciones (única instancia — se pasan como props al dropdown)
   const notifHook = useNotificaciones();
 
@@ -144,6 +149,7 @@ export default function ProcesosLogistica() {
       case "solicitudes": return { icon: "fa-solid fa-circle-exclamation", title: "Gestión de Solicitudes", subtitle: esAdmin ? "Solicitudes pendientes" : "Tus solicitudes realizadas" };
       case "finanzas": return { icon: "fa-solid fa-file-invoice-dollar", title: "Control Financiero", subtitle: "Revisión de causación y egresos" };
       case "trazabilidad-area": return { icon: "fa-solid fa-route", title: "Trazabilidad por Área", subtitle: "Consulta y descarga trazabilidad filtrada por área y fechas" };
+      case "gastos-proveedor": return { icon: "fa-solid fa-chart-pie", title: "Gastos por Proveedor", subtitle: "Análisis financiero y control de facturas finalizadas por cargo" };
       default: return { icon: "fa-solid fa-house", title: "Procesos administrativos", subtitle: "Selecciona un formato del menú lateral" };
     }
   };
@@ -168,6 +174,12 @@ export default function ProcesosLogistica() {
         openSaia={(rad, fromTab) => saiaHook.openSaia(rad, fromTab, tareasHook.setSelectedTareaId, radicadosHook.setSelectedRadicadoId, flujoHook.recargarFlujo, flujoHook.recargarTrazabilidad, flujoHook.recargarNormas, flujoHook.recargarComentarios)} 
       />;
       case "trazabilidad-area": return <RenderTrazabilidadPorArea {...trazabilidadAreaHook} obtenerToken={obtenerToken} />;
+      case "gastos-proveedor": return <RenderGastosProveedor 
+        gastosHook={gastosHook} 
+        openSaia={(rad, fromTab) => saiaHook.openSaia(rad, fromTab, tareasHook.setSelectedTareaId, radicadosHook.setSelectedRadicadoId, flujoHook.recargarFlujo, flujoHook.recargarTrazabilidad, flujoHook.recargarNormas, flujoHook.recargarComentarios)}
+        esAdmin={esAdmin}
+        userCargo={userCargo}
+      />;
       default: return <RenderWelcome />;
     }
   };
