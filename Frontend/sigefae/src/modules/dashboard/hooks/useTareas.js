@@ -2,6 +2,16 @@ import { useState, useEffect, useRef } from "react";
 import { API } from "../constants/api";
 import { isFinalState } from "../helpers/formatters";
 
+const fetchNoStore = (url, options = {}) => fetch(url, {
+  ...options,
+  cache: "no-store",
+  headers: {
+    ...options.headers,
+    "Cache-Control": "no-cache, no-store, must-revalidate",
+    Pragma: "no-cache",
+  },
+});
+
 export function useTareas(obtenerToken, activeTab, userId, userCargoId) {
   const [misTareas, setMisTareas] = useState([]);
   const [misTareasCompletadas, setMisTareasCompletadas] = useState([]);
@@ -17,8 +27,7 @@ export function useTareas(obtenerToken, activeTab, userId, userCargoId) {
     const requestId = ++requestSequence.current;
     setLoadingTareas(true);
     try {
-      const response = await fetch(`${API}/documentoradicado?_t=${Date.now()}`, {
-        cache: "no-store",
+      const response = await fetchNoStore(`${API}/documentoradicado/mis-tareas?_t=${Date.now()}`, {
         headers: { Authorization: `Bearer ${obtenerToken()}` }
       });
       if (!response.ok) throw new Error("No se pudieron actualizar las tareas");
@@ -54,30 +63,42 @@ export function useTareas(obtenerToken, activeTab, userId, userCargoId) {
 
   useEffect(() => {
     if (activeTab !== "tareas") return;
-    void recargarTareas();
+    const run = async () => { await recargarTareas(); };
+    void run();
     return () => { requestSequence.current += 1; };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeTab, userId, userCargoId, obtenerToken]);
 
   useEffect(() => {
     if (!selectedTareaId) return;
-    setTareaDetail(null);
-    const t = `?_t=${new Date().getTime()}`;
-    fetch(`${API}/documentoradicado/${selectedTareaId}${t}`, { headers: { Authorization: `Bearer ${obtenerToken()}` } })
-      .then((res) => res.json())
-      .then(async (data) => {
+    const controller = new AbortController();
+    const fetchDetail = async () => {
+      setTareaDetail(null);
+      const t = `?_t=${new Date().getTime()}`;
+      try {
+        const res = await fetchNoStore(`${API}/documentoradicado/${selectedTareaId}${t}`, {
+          headers: { Authorization: `Bearer ${obtenerToken()}` },
+          signal: controller.signal,
+        });
+        if (!res.ok) throw new Error(`No se pudo cargar la tarea (${res.status})`);
+        const data = await res.json();
         if (data?.id) {
           if (data.ruta?.id && !data.ruta?.area) {
             try {
-              const rutasRes = await fetch(`${API}/rutas`, { headers: { Authorization: `Bearer ${obtenerToken()}` } });
+              const rutasRes = await fetchNoStore(`${API}/rutas`, { headers: { Authorization: `Bearer ${obtenerToken()}` } });
               const rutasList = await rutasRes.json();
               const rutaCompleta = (Array.isArray(rutasList) ? rutasList : []).find(r => r.id === data.ruta.id);
               if (rutaCompleta) data.ruta.area = rutaCompleta.area;
-            } catch (e) {}
+            } catch { /* enriquecimiento de ruta opcional, no crítico */ }
           }
           setTareaDetail(data);
         }
-      })
-      .catch((err) => console.error(err));
+      } catch (err) {
+        if (!controller.signal.aborted) console.error(err);
+      }
+    };
+    void fetchDetail();
+    return () => controller.abort();
   }, [selectedTareaId, obtenerToken]);
 
   const getFilteredTareas = (baseList) => {

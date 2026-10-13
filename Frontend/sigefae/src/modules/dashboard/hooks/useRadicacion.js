@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
 import { API } from "../constants/api";
+import { crearProyectoCatalogo } from "../helpers/proyectos";
 
 export function useRadicacion(obtenerToken, userId, setDocumentos, setActiveTab, setSelectedDocId, setDocDetail) {
   const [showRadicarModal, setShowRadicarModal] = useState(false);
@@ -23,6 +24,15 @@ export function useRadicacion(obtenerToken, userId, setDocumentos, setActiveTab,
   const [metodosPago, setMetodosPago] = useState([]);
   const [normasRepartoCatalogo, setNormasRepartoCatalogo] = useState([]);
   const [proyectosCatalogo, setProyectosCatalogo] = useState([]);
+
+  const handleCrearProyecto = async (nombre, zona) => {
+    const project = await crearProyectoCatalogo(nombre, zona, obtenerToken);
+    setProyectosCatalogo((current) => {
+      const updated = [...current.filter((item) => item.id !== project.id), project];
+      return updated.sort((a, b) => a.nombre.localeCompare(b.nombre));
+    });
+    return project;
+  };
 
   // Inputs para Normas de Reparto
   const [normaFiltroSede, setNormaFiltroSede] = useState("");
@@ -75,8 +85,11 @@ export function useRadicacion(obtenerToken, userId, setDocumentos, setActiveTab,
   // normas predeterminadas por proveedor y ruta
   useEffect(() => {
     if (!showRadicarModal || !proveedorIdActual || !radicarForm.ruta_id) {
-      setNormasPredeterminadas([]);
-      setUsarNormasPredeterminadas(null);
+      const reset = async () => {
+        setNormasPredeterminadas([]);
+        setUsarNormasPredeterminadas(null);
+      };
+      void reset();
       return;
     }
     const cargar = async () => {
@@ -92,12 +105,12 @@ export function useRadicacion(obtenerToken, userId, setDocumentos, setActiveTab,
           setNormasPredeterminadas([]);
           setUsarNormasPredeterminadas(null);
         }
-      } catch (e) {
-        console.error("Error cargando normas predeterminadas:", e);
+      } catch {
+        // Ignorar el error pero limpiar el estado
         setNormasPredeterminadas([]);
       }
     };
-    cargar();
+    void cargar();
   }, [radicarForm.ruta_id, proveedorIdActual, showRadicarModal, obtenerToken]);
 
   const openRadicarModal = async (docId, subtotal = 0) => {
@@ -326,7 +339,7 @@ export function useRadicacion(obtenerToken, userId, setDocumentos, setActiveTab,
         body: JSON.stringify(payload),
       });
       if (!res.ok) { const errData = await res.json(); throw new Error(errData.error || "Error al radicar"); }
-      const creado = await res.json();
+      await res.json();
 
       setShowRadicarModal(false); setRadicarDocId(null);
       setSelectedDocId(null); setDocDetail(null);
@@ -355,6 +368,7 @@ export function useRadicacion(obtenerToken, userId, setDocumentos, setActiveTab,
     openRadicarModal, handleRadicarChange, handleAgregarNormaModal,
     handleNormaRepartoChange, handleRemoveNormaReparto,
     handleAgregarActivoModal, handleActivoFijoChange, handleRemoveActivoFijo,
+    handleCrearProyecto,
     handleRadicarSubmit
   };
 }

@@ -25,6 +25,28 @@ export default function ModalDevolver({
     }
   });
 
+  const getAsignadoLabel = (tarea) => {
+    if (tarea.usuario_asignado?.nombre) {
+      return {
+        nombre: tarea.usuario_asignado.nombre,
+        email: tarea.usuario_asignado.email || ""
+      };
+    }
+    if (tarea.cargo_asignado?.nombre) {
+      return {
+        nombre: `Cargo: ${tarea.cargo_asignado.nombre}`,
+        email: ""
+      };
+    }
+    if (typeof tarea.cargo_asignado === "string" && tarea.cargo_asignado) {
+      return {
+        nombre: `Cargo: ${tarea.cargo_asignado}`,
+        email: ""
+      };
+    }
+    return { nombre: "Sin usuario", email: "" };
+  };
+
   return (
     <div className="modal-overlay" onClick={() => setShowDevolverModal(false)}>
       <div className="modal-content" onClick={(e) => e.stopPropagation()}>
@@ -37,9 +59,14 @@ export default function ModalDevolver({
             <label>Devolver a Paso / Usuario <span className="required">*</span></label>
             <select value={devolverForm.tarea_destino_id} onChange={(e) => setDevolverForm(prev => ({ ...prev, tarea_destino_id: e.target.value }))} className="doc-input">
               <option value="">Seleccione paso de destino...</option>
-              {tareasDestino.map(t => (
-                <option key={t.id} value={t.id}>{t.descripcion} — {t.usuario_asignado?.nombre || "Sin usuario"} ({t.usuario_asignado?.email || ""}) [Completada]</option>
-              ))}
+              {tareasDestino.map(t => {
+                const asignado = getAsignadoLabel(t);
+                return (
+                  <option key={t.id} value={t.id}>
+                    {t.descripcion} — {asignado.nombre}{asignado.email ? ` (${asignado.email})` : ""} [Completada]
+                  </option>
+                );
+              })}
             </select>
           </div>
           <div className="modal-field">

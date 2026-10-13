@@ -3,11 +3,12 @@ import { isFinalState } from "../helpers/formatters";
 
 export default function RenderRadicados({
   radicados, selectedRadicadoId, loadingRadicados, searchRadicados, setSearchRadicados,
-  sortRadicados, setSortRadicados, tareasPorRadicado, getFilteredRadicados, openSaia
+  sortRadicados, setSortRadicados, filtroZona, setFiltroZona, tareasPorRadicado, getFilteredRadicados, openSaia
 }) {
   const [activeSubTab, setActiveSubTab] = useState("en_proceso");
 
   const baseFilteredList = getFilteredRadicados();
+  const zonasDisponibles = [...new Set(radicados.map(r => r.ruta?.zona).filter(Boolean))].sort();
   
   const filteredList = baseFilteredList.filter(rad => {
     if (activeSubTab === "finalizados") return isFinalState(rad.estado_posesion);
@@ -20,6 +21,12 @@ export default function RenderRadicados({
           <h3><i className="fa-solid fa-stamp"></i> Documentos Radicados ({filteredList.length})</h3>
           <div className="list-controls">
             <input type="text" placeholder="Buscar radicado, doc, proveedor..." value={searchRadicados} onChange={e => setSearchRadicados(e.target.value)} />
+            <select value={filtroZona || ""} onChange={e => setFiltroZona(e.target.value)}>
+              <option value="">Todas las zonas</option>
+              {zonasDisponibles.map(z => (
+                <option key={z} value={z}>{z}</option>
+              ))}
+            </select>
             <select value={sortRadicados} onChange={e => setSortRadicados(e.target.value)}>
               <option value="fecha_desc">Más recientes</option>
               <option value="fecha_asc">Más antiguos</option>
@@ -58,6 +65,12 @@ export default function RenderRadicados({
                 </div>
                 <div className="rad-card-numero"><i className="fa-solid fa-hashtag"></i> {rad.numero_radicado}</div>
                 <div className="rad-card-doc">{rad.documento_comercial?.numero_documento || "Sin documento"}</div>
+                <div className="rad-card-doc" title={rad.documento_comercial?.proveedor?.razon_social || "Proveedor no disponible"}>
+                  <i className="fa-solid fa-building"></i> {rad.documento_comercial?.proveedor?.razon_social || "Proveedor no disponible"}
+                </div>
+                <div className="rad-card-doc">
+                  <i className="fa-solid fa-briefcase"></i> Cargo actual: {rad.cargo_actual?.nombre || "Sin cargo asignado"}
+                </div>
                 <div className="rad-card-bottom">
                   <span className="rad-card-date"><i className="fa-regular fa-calendar"></i> {new Date(rad.fecha_radicacion).toLocaleDateString()}</span>
                   {(!isFinalState(rad.estado_posesion)) && rad.usuario_actual?.nombre && (

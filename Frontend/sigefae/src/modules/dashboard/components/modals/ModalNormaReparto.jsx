@@ -1,9 +1,11 @@
 import { formatCurrency } from "../../helpers/formatters";
+import ProjectInput from "./ProjectInput.jsx";
 
 export default function ModalNormaReparto({
   showNormaModal, setShowNormaModal, normaEditandoId, normaFormDetalle, setNormaFormDetalle,
   normaModalRadicadoId, normaFiltroSede, setNormaFiltroSede, normaFiltroArea, setNormaFiltroArea,
   normasRepartoCatalogo, proyectosDisponibles, sedesDisponibles, areasDisponibles, handleGuardarNormaDetalle,
+  handleCrearProyecto,
   subtotalRadicado
 }) {
   if (!showNormaModal) return null;
@@ -38,7 +40,6 @@ export default function ModalNormaReparto({
     setNormaFormDetalle(newForm);
   };
 
-  const normaSeleccionadaInfo = normasRepartoCatalogo.find(n => String(n.id) === String(normaFormDetalle.norma_reparto_id));
 
   return (
     <div className="modal-overlay" onClick={() => setShowNormaModal(false)}>
@@ -72,20 +73,17 @@ export default function ModalNormaReparto({
           <div style={{ display: "flex", gap: 10, marginTop: 10 }}>
             <div className="modal-field" style={{ flex: 1 }}>
               <label>Proyecto <span className="required">*</span></label>
-              <input
-                type="text"
-                list="proyectos-list"
-                className="doc-input"
-                style={{ borderColor: !normaFormDetalle.proyecto?.trim() ? "#ef4444" : undefined }}
+              <ProjectInput
+                listId="proyectos-list"
+                projects={proyectosDisponibles}
+                zones={sedesDisponibles}
+                zoneDefault={normaFiltroSede}
+                onCreateProject={handleCrearProyecto}
                 value={normaFormDetalle.proyecto || ""}
-                onChange={(e) => setNormaFormDetalle(prev => ({ ...prev, proyecto: e.target.value }))}
+                onChange={(value) => setNormaFormDetalle(prev => ({ ...prev, proyecto: value }))}
                 placeholder="Nombre del proyecto (requerido)..."
+                inputStyle={{ borderColor: !normaFormDetalle.proyecto?.trim() ? "#ef4444" : undefined }}
               />
-              <datalist id="proyectos-list">
-                {proyectosDisponibles.map(p => (
-                  <option key={p.id} value={p.nombre} />
-                ))}
-              </datalist>
             </div>
             <div className="modal-field" style={{ flex: 2 }}>
               <label>Descripción <small style={{ float: "right", color: (normaFormDetalle.descripcion || "").length >= 100 ? "#ef4444" : "#6b7280" }}>{(normaFormDetalle.descripcion || "").length}/100</small></label>

@@ -7,7 +7,7 @@ import (
 	"gorm.io/gorm"
 )
 
-func TestNewRegistersCargoRoutes(t *testing.T) {
+func TestNewKeepsCargoReadOnly(t *testing.T) {
 	database, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
 	if err != nil {
 		t.Fatal(err)
@@ -22,14 +22,26 @@ func TestNewRegistersCargoRoutes(t *testing.T) {
 	for _, route := range []string{
 		"GET /api/cargos",
 		"GET /api/cargos/activos",
+		"GET /api/regla-nit-ruta",
+		"POST /api/regla-nit-ruta",
+		"PUT /api/regla-nit-ruta/:id",
+		"PATCH /api/regla-nit-ruta/:id/activo",
+		"DELETE /api/regla-nit-ruta/:id",
+	} {
+		if !registered[route] {
+			t.Errorf("cargo route %q was not registered", route)
+		}
+	}
+
+	for _, route := range []string{
 		"GET /api/cargos/todos",
 		"POST /api/cargos",
 		"PATCH /api/cargos/:id",
 		"PATCH /api/cargos/:id/activo",
 		"DELETE /api/cargos/:id",
 	} {
-		if !registered[route] {
-			t.Errorf("cargo route %q was not registered", route)
+		if registered[route] {
+			t.Errorf("cargo write route %q must not be registered", route)
 		}
 	}
 }

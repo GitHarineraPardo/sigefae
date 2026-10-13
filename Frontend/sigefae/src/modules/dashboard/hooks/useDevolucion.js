@@ -7,7 +7,7 @@ export function useDevolucion(obtenerToken, activeTab, setSelectedTareaId, setSe
   const [devolverForm, setDevolverForm] = useState({ tarea_destino_id: "", observacion: "", retorno_directo: true });
   const [devolviendo, setDevolviendo] = useState(false);
 
-  const handleDevolverTarea = async (tareaId, radicadoId) => {
+  const handleDevolverTarea = async (tareaId) => {
     if (!devolverForm.tarea_destino_id || !devolverForm.observacion.trim()) {
       alert("Debe seleccionar un paso de destino y escribir un motivo de devolución."); return;
     }

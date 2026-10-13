@@ -14,10 +14,50 @@ import (
 	"gorm.io/gorm"
 
 	"sigefae/internal/db"
+	"sigefae/internal/regla_nit_ruta"
 )
 
 type Service struct {
 	db *gorm.DB
+}
+
+type reglaRutaAplicable struct {
+	ID                uint
+	Tipo              string
+	PosicionInsercion string
+	Prioridad         int
+	Nombre            string
+	UsuarioID         *uint
+	CargoID           *uint
+	RolID             *uint
+}
+
+func ordenarReglasRuta(reglas []reglaRutaAplicable) {
+	sort.Slice(reglas, func(i, j int) bool {
+		if reglas[i].Prioridad != reglas[j].Prioridad {
+			return reglas[i].Prioridad < reglas[j].Prioridad
+		}
+		if reglas[i].Tipo != reglas[j].Tipo {
+			return ordenTipoRegla(reglas[i].Tipo) < ordenTipoRegla(reglas[j].Tipo)
+		}
+		return reglas[i].ID < reglas[j].ID
+	})
+}
+
+func ordenTipoRegla(tipo string) int {
+	switch tipo {
+	case "MONTO":
+		return 0
+	case "NIT":
+		return 1
+	default:
+		return 2
+	}
+}
+
+func reglasMontoActivasPorRuta(tx *gorm.DB, rutaID uint) *gorm.DB {
+	return tx.Model(&db.ReglaMontoRuta{}).
+		Where("activo = ? AND (ruta_id IS NULL OR ruta_id = ?)", true, rutaID)
 }
 
 func New(database *gorm.DB) *Service {
@@ -396,13 +436,12 @@ func generarTareasDesdeRuta(tx *gorm.DB, radicado *db.DocumentoRadicado, rutaID 
 		return err
 	}
 
-	// ── 3. Verificar si hay reglas de monto activas aplicables ──
+	// ── 3. Obtener reglas activas aplicables por monto y NIT ──
 	var countReglas int64
-	tx.Model(&db.ReglaMontoRuta{}).
-		Where("activo = ?", true).
-		Count(&countReglas)
+	reglasMontoActivasPorRuta(tx, rutaID).Count(&countReglas)
 
 	var reglas []db.ReglaMontoRuta
+	var reglasAplicables []reglaRutaAplicable
 
 	if countReglas > 0 {
 		// Obtener SMMLV solo si hay reglas que evaluar
@@ -416,7 +455,8 @@ func generarTareasDesdeRuta(tx *gorm.DB, radicado *db.DocumentoRadicado, rutaID 
 		docTotalEnSmmlv := docCom.Total / smmlv.Valor
 
 		// ── 4. Obtener reglas de monto aplicables por SMMLV ──
-		query := tx.Where("activo = ? AND COALESCE(monto_minimo_smmlv, 0) <= ?", true, docTotalEnSmmlv).
+		query := reglasMontoActivasPorRuta(tx, rutaID).
+			Where("COALESCE(monto_minimo_smmlv, 0) <= ?", docTotalEnSmmlv).
 			Where("(COALESCE(monto_maximo_smmlv, 0) = 0 OR monto_maximo_smmlv >= ?)", docTotalEnSmmlv).
 			Preload("UsuarioAprobador").
 			Preload("RolAprobador").
@@ -425,11 +465,65 @@ func generarTareasDesdeRuta(tx *gorm.DB, radicado *db.DocumentoRadicado, rutaID 
 		if err := query.Find(&reglas).Error; err != nil {
 			return err
 		}
+		for _, regla := range reglas {
+			nombre := fmt.Sprintf("Aprobación por monto (≥ %.2f SMMLV)", regla.MontoMinimoSmmlv)
+			if regla.MontoMaximoSmmlv > 0 {
+				nombre = fmt.Sprintf("Aprobación por monto (%.2f - %.2f SMMLV)", regla.MontoMinimoSmmlv, regla.MontoMaximoSmmlv)
+			}
+			reglasAplicables = append(reglasAplicables, reglaRutaAplicable{
+				ID: regla.ID, Tipo: "MONTO", PosicionInsercion: regla.PosicionInsercion, Prioridad: regla.Prioridad,
+				Nombre: nombre, UsuarioID: regla.UsuarioAprobadorID, CargoID: regla.CargoAprobadorID, RolID: regla.RolAprobadorID,
+			})
+		}
 	}
 
-	// ── 5. Clasificar reglas por posición ──
-	var alInicio, antesDelFinal, alFinal []db.ReglaMontoRuta
-	for _, r := range reglas {
+	var countReglasNIT int64
+	tx.Model(&db.ReglaNITRuta{}).Where("activo = ?", true).Count(&countReglasNIT)
+	if countReglasNIT > 0 {
+		var proveedor db.Proveedor
+		if err := tx.Select("numero_documento", "tipo_documento_id").Preload("TipoDocumento").First(&proveedor, docCom.IDProveedor).Error; err != nil {
+			return err
+		}
+		nitDocumento := ""
+		if proveedor.TipoDocumento != nil && strings.EqualFold(strings.TrimSpace(proveedor.TipoDocumento.Nombre), "NIT") {
+			nitDocumento = regla_nit_ruta.NormalizarNIT(proveedor.NumeroDocumento)
+		}
+		var reglasNIT []db.ReglaNITRuta
+		if err := tx.Where("activo = ?", true).Find(&reglasNIT).Error; err != nil {
+			return err
+		}
+		for _, regla := range reglasNIT {
+			if nitDocumento == "" || nitDocumento != regla_nit_ruta.NormalizarNIT(regla.NIT) {
+				continue
+			}
+			reglasAplicables = append(reglasAplicables, reglaRutaAplicable{
+				ID: regla.ID, Tipo: "NIT", PosicionInsercion: regla.PosicionInsercion, Prioridad: regla.Prioridad,
+				Nombre: "Aprobación por NIT (" + regla.NIT + ")", CargoID: regla.CargoAprobadorID,
+			})
+		}
+	}
+
+	// ── 5. Filtrar reglas cuyo cargo ya existe en los pasos de la ruta ──
+	// Construir un set de CargoIDs presentes en los pasos base de la ruta.
+	cargoEnRuta := map[uint]bool{}
+	for _, p := range pasos {
+		if p.CargoID != nil {
+			cargoEnRuta[*p.CargoID] = true
+		}
+	}
+	var reglasValidas []reglaRutaAplicable
+	for _, r := range reglasAplicables {
+		if r.CargoID != nil && cargoEnRuta[*r.CargoID] {
+			// El cargo de esta regla ya está presente como paso fijo en la ruta; omitir.
+			continue
+		}
+		reglasValidas = append(reglasValidas, r)
+	}
+	reglasAplicables = reglasValidas
+
+	// ── 5b. Clasificar reglas (filtradas) por posición ──
+	var alInicio, antesDelFinal, alFinal []reglaRutaAplicable
+	for _, r := range reglasAplicables {
 		switch r.PosicionInsercion {
 		case "PRIMERO":
 			alInicio = append(alInicio, r)
@@ -441,32 +535,26 @@ func generarTareasDesdeRuta(tx *gorm.DB, radicado *db.DocumentoRadicado, rutaID 
 	}
 
 	// Ordenar cada grupo por prioridad (menor = va primero)
-	sort.Slice(alInicio, func(i, j int) bool { return alInicio[i].Prioridad < alInicio[j].Prioridad })
-	sort.Slice(antesDelFinal, func(i, j int) bool { return antesDelFinal[i].Prioridad < antesDelFinal[j].Prioridad })
-	sort.Slice(alFinal, func(i, j int) bool { return alFinal[i].Prioridad < alFinal[j].Prioridad })
+	// Empates: primero monto, luego NIT; dentro del tipo, ID ascendente.
+	ordenarReglasRuta(alInicio)
+	ordenarReglasRuta(antesDelFinal)
+	ordenarReglasRuta(alFinal)
 
 	// ── 5. Helper para resolver asignación de una regla ──
-	resolverAsignacion := func(r db.ReglaMontoRuta) (*uint, *uint) {
-		if r.CargoAprobadorID != nil {
-			return nil, r.CargoAprobadorID
+	resolverAsignacion := func(r reglaRutaAplicable) (*uint, *uint) {
+		if r.CargoID != nil {
+			return nil, r.CargoID
 		}
-		if r.UsuarioAprobadorID != nil {
-			return r.UsuarioAprobadorID, nil
+		if r.UsuarioID != nil {
+			return r.UsuarioID, nil
 		}
-		if r.RolAprobadorID != nil {
+		if r.RolID != nil {
 			var usr db.Usuario
-			if err := tx.Where("id_rol = ? AND activo = ?", *r.RolAprobadorID, true).First(&usr).Error; err == nil {
+			if err := tx.Where("id_rol = ? AND activo = ?", *r.RolID, true).First(&usr).Error; err == nil {
 				return &usr.ID, nil
 			}
 		}
 		return nil, nil
-	}
-
-	formatoRegla := func(r db.ReglaMontoRuta) string {
-		if r.MontoMaximoSmmlv > 0 {
-			return fmt.Sprintf("Aprobación por monto (%.2f - %.2f SMMLV)", r.MontoMinimoSmmlv, r.MontoMaximoSmmlv)
-		}
-		return fmt.Sprintf("Aprobación por monto (≥ %.2f SMMLV)", r.MontoMinimoSmmlv)
 	}
 
 	type pasoFinal struct {
@@ -482,7 +570,7 @@ func generarTareasDesdeRuta(tx *gorm.DB, radicado *db.DocumentoRadicado, rutaID 
 	for _, r := range alInicio {
 		uid, cargoID := resolverAsignacion(r)
 		flujo = append(flujo, pasoFinal{
-			Nombre:    formatoRegla(r),
+			Nombre:    r.Nombre,
 			UsuarioID: uid,
 			CargoID:   cargoID,
 			EsRegla:   true,
@@ -504,7 +592,7 @@ func generarTareasDesdeRuta(tx *gorm.DB, radicado *db.DocumentoRadicado, rutaID 
 	for _, r := range antesDelFinal {
 		uid, cargoID := resolverAsignacion(r)
 		flujo = append(flujo, pasoFinal{
-			Nombre:    formatoRegla(r),
+			Nombre:    r.Nombre,
 			UsuarioID: uid,
 			CargoID:   cargoID,
 			EsRegla:   true,
@@ -524,7 +612,7 @@ func generarTareasDesdeRuta(tx *gorm.DB, radicado *db.DocumentoRadicado, rutaID 
 	for _, r := range alFinal {
 		uid, cargoID := resolverAsignacion(r)
 		flujo = append(flujo, pasoFinal{
-			Nombre:    formatoRegla(r),
+			Nombre:    r.Nombre,
 			UsuarioID: uid,
 			CargoID:   cargoID,
 			EsRegla:   true,
@@ -532,42 +620,28 @@ func generarTareasDesdeRuta(tx *gorm.DB, radicado *db.DocumentoRadicado, rutaID 
 	}
 
 	// ── 5.6 Obtener IDs de Cargos fijos ──
-	var cargoAuxOriente, cargoAuxNorte, cargoAnalistaNorte, cargoAnalistaOriente db.Cargo
-	tx.Where("nombre = ?", "Auxiliar Compras Oriente").First(&cargoAuxOriente)
-	tx.Where("nombre = ?", "Auxiliar Compras Norte").First(&cargoAuxNorte)
-	tx.Where("nombre = ?", "Analista Compras Norte").First(&cargoAnalistaNorte)
-	tx.Where("nombre = ?", "Analista Compras Oriente").First(&cargoAnalistaOriente)
+	var cargoAuxOriente, cargoAuxNorte db.Cargo
+	tx.Where("nombre = ?", "Auxiliar Admon Oriente").First(&cargoAuxOriente)
+	tx.Where("nombre = ?", "Auxiliar Admon Norte").First(&cargoAuxNorte)
 
 	// ── 5.7 PREFIJO Y SUFIJO POR ZONA ──
-	// BU: [Aux Compras Oriente (Jennyfer)] → [Analista Compras Oriente] → pasos → [Aux Compras Oriente]
-	// MB: [Aux Compras Oriente (Jennyfer)] → [Aux Compras Norte] → [Analista Compras Norte] → pasos → [Aux Compras Oriente]
+	// BU: [Aux Admon Oriente] → pasos → [Aux Admon Oriente]
+	// MB: [Aux Admon Oriente] → [Aux Admon Norte] → pasos → [Aux Admon Oriente]
 	var prefijoFlujo []pasoFinal
 	var sufijo1Flujo []pasoFinal
 
-	// ── Jennyfer (Aux Compras Oriente) siempre va de PRIMERO en ambas zonas ──
+	// ── Aux Admon Oriente siempre va de PRIMERO en ambas zonas ──
 	prefijoFlujo = append(prefijoFlujo, pasoFinal{
-		Nombre:  "Revisión Auxiliar Compras Oriente",
+		Nombre:  "Revisión Auxiliar Admon Oriente",
 		CargoID: &cargoAuxOriente.ID,
 		EsRegla: false,
 	})
 
 	if esMalambo {
-		// MB: después de Jennyfer va Aux Compras Norte, luego Analista Compras Norte, luego pasos
+		// MB: después de Aux Admon Oriente va Aux Admon Norte, luego pasos
 		prefijoFlujo = append(prefijoFlujo, pasoFinal{
-			Nombre:  "Revisión Auxiliar Compras Norte",
+			Nombre:  "Revisión Auxiliar Admon Norte",
 			CargoID: &cargoAuxNorte.ID,
-			EsRegla: false,
-		})
-		prefijoFlujo = append(prefijoFlujo, pasoFinal{
-			Nombre:  "Revisión Analista Compras Norte",
-			CargoID: &cargoAnalistaNorte.ID,
-			EsRegla: false,
-		})
-	} else {
-		// BU: después de Jennyfer va Analista Compras Oriente, luego pasos
-		prefijoFlujo = append(prefijoFlujo, pasoFinal{
-			Nombre:  "Revisión Analista Compras Oriente",
-			CargoID: &cargoAnalistaOriente.ID,
 			EsRegla: false,
 		})
 	}
@@ -577,7 +651,7 @@ func generarTareasDesdeRuta(tx *gorm.DB, radicado *db.DocumentoRadicado, rutaID 
 
 	// ── 5.8 PASO FINAL ABSOLUTO ──
 	flujo = append(flujo, pasoFinal{
-		Nombre:  "Revisión Auxiliar Compras Oriente",
+		Nombre:  "Revisión Auxiliar Admon Oriente",
 		CargoID: &cargoAuxOriente.ID,
 		EsRegla: false,
 	})

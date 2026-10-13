@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { API } from "../constants/api";
+import { crearProyectoCatalogo } from "../helpers/proyectos";
 
 export function useNormasReparto(
   obtenerToken, esAdmin, puedeGestionarRecurso,
@@ -14,6 +15,15 @@ export function useNormasReparto(
   const [normaFiltroArea, setNormaFiltroArea] = useState("");
   const [normasRepartoCatalogo, setNormasRepartoCatalogo] = useState([]);
   const [proyectosDisponibles, setProyectosDisponibles] = useState([]);
+
+  const handleCrearProyecto = async (nombre, zona) => {
+    const project = await crearProyectoCatalogo(nombre, zona, obtenerToken);
+    setProyectosDisponibles((current) => {
+      const updated = [...current.filter((item) => item.id !== project.id), project];
+      return updated.sort((a, b) => a.nombre.localeCompare(b.nombre));
+    });
+    return project;
+  };
 
   // Activos Fijos
   const [showActivoModal, setShowActivoModal] = useState(false);
@@ -88,7 +98,7 @@ export function useNormasReparto(
     if (!activoFormDetalle.sucursal) { alert("Seleccione una sucursal"); return; }
     if (!activoFormDetalle.porcentaje || parseFloat(activoFormDetalle.porcentaje) <= 0) { alert("Ingrese un porcentaje válido"); return; }
     if (activoFormDetalle.proyecto?.trim()) {
-      const proyectoValido = proyectosDisponibles.some(p => p.nombre.toLowerCase() === activoFormDetalle.proyecto.trim().toLowerCase());
+      const proyectoValido = proyectosDisponibles.some(p => p.nombre?.trim().toLowerCase() === activoFormDetalle.proyecto.trim().toLowerCase());
       if (!proyectoValido) { alert("El proyecto ingresado no es válido. Debe seleccionar uno del catálogo."); return; }
     }
     try {
@@ -163,7 +173,7 @@ export function useNormasReparto(
     if (!normaFormDetalle.proyecto || !normaFormDetalle.proyecto.trim()) { alert("El campo Proyecto es obligatorio"); return; }
     
     // Validar que el proyecto esté en el catálogo
-    const proyectoValido = proyectosDisponibles.some(p => p.nombre.toLowerCase() === normaFormDetalle.proyecto.trim().toLowerCase());
+    const proyectoValido = proyectosDisponibles.some(p => p.nombre?.trim().toLowerCase() === normaFormDetalle.proyecto.trim().toLowerCase());
     if (!proyectoValido) {
       alert("El proyecto ingresado no es válido. Debe seleccionar uno de la lista del catálogo.");
       return;
@@ -267,7 +277,7 @@ export function useNormasReparto(
     normaFiltroSede, setNormaFiltroSede, normaFiltroArea, setNormaFiltroArea,
     normasRepartoCatalogo, setNormasRepartoCatalogo, proyectosDisponibles,
     sedesDisponibles, areasDisponibles,
-    openNormaModal, handleGuardarNormaDetalle, handleEliminarNorma,
+    openNormaModal, handleGuardarNormaDetalle, handleEliminarNorma, handleCrearProyecto,
     // Activos Fijos
     showActivoModal, setShowActivoModal, activoEditandoId, activoFormDetalle, setActivoFormDetalle,
     activoModalRadicadoId, activosFijosRadicado, setActivosFijosRadicado,

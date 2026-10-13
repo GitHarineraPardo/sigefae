@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import { useState } from "react";
 import { formatCurrency } from "../helpers/formatters";
 import ModalSubirComprobante from "./modals/ModalSubirComprobante";
 

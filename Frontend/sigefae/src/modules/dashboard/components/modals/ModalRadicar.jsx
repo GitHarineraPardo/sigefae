@@ -1,4 +1,5 @@
 import { formatCurrency } from "../../helpers/formatters";
+import ProjectInput from "./ProjectInput.jsx";
 
 export default function ModalRadicar({
   showRadicarModal, setShowRadicarModal, radicarForm, radicando,
@@ -16,6 +17,7 @@ export default function ModalRadicar({
   totalPorcentajeNormas = 0, totalPorcentajeActivos = 0, totalPorcentajeCombinado = 0,
   normasPredeterminadas, usarNormasPredeterminadas,
   aceptarNormasPredeterminadas, rechazarNormasPredeterminadas,
+  handleCrearProyecto,
   handleRadicarChange, handleAgregarNormaModal, handleNormaRepartoChange, handleRemoveNormaReparto,
   handleAgregarActivoModal, handleActivoFijoChange, handleRemoveActivoFijo,
   handleRadicarSubmit
@@ -75,15 +77,6 @@ export default function ModalRadicar({
 
         <div className="modal-body" style={{ overflowY: "auto", flex: 1, paddingRight: "8px" }}>
           
-          {/* Datalist global para autocompletar proyectos */}
-          <datalist id="proyectos-radicar-list">
-            {proyectosCatalogo.map(p => (
-              <option key={p.id} value={p.nombre}>
-                {p.zona ? `[${p.zona}] ` : ""}{p.nombre}
-              </option>
-            ))}
-          </datalist>
-
           {/* ── SECCIÓN 1: DATOS GENERALES ── */}
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "12px", marginBottom: "12px" }}>
             <div className="modal-field">
@@ -260,14 +253,16 @@ export default function ModalRadicar({
             </div>
 
             <div style={{ display: "flex", gap: 8, marginBottom: 12 }}>
-              <input
-                type="text"
-                list="proyectos-radicar-list"
-                className="doc-input"
-                style={{ flex: 1, fontSize: "0.82em", borderColor: !normaProyectoInput ? "#ef4444" : undefined }}
-                placeholder="Proyecto * (selecciona o escribe)"
+              <ProjectInput
+                listId="proyectos-radicar-list"
+                projects={proyectosCatalogo}
+                zones={sedesDisponibles}
+                onCreateProject={handleCrearProyecto}
                 value={normaProyectoInput}
-                onChange={(e) => setNormaProyectoInput(e.target.value)}
+                onChange={setNormaProyectoInput}
+                placeholder="Proyecto * (selecciona o escribe)"
+                containerStyle={{ flex: 1 }}
+                inputStyle={{ fontSize: "0.82em", borderColor: !normaProyectoInput ? "#ef4444" : undefined }}
               />
               <input
                 type="text"
@@ -305,7 +300,17 @@ export default function ModalRadicar({
                         <button className="btn-icon btn-toggle" onClick={() => handleRemoveNormaReparto(idx)} title="Quitar" style={{ width: 26, height: 26, flexShrink: 0 }}><i className="fa-solid fa-xmark"></i></button>
                       </div>
                       <div style={{ display: "flex", gap: 8 }}>
-                        <input type="text" list="proyectos-radicar-list" className="doc-input" placeholder="Proyecto" style={{ flex: 1, fontSize: "0.78em", padding: "3px 6px" }} value={norma.proyecto || ""} onChange={(e) => handleNormaRepartoChange(idx, "proyecto", e.target.value)} />
+                        <ProjectInput
+                          listId="proyectos-radicar-list"
+                          projects={proyectosCatalogo}
+                          zones={sedesDisponibles}
+                          zoneDefault={info?.sucursal || ""}
+                          onCreateProject={handleCrearProyecto}
+                          value={norma.proyecto || ""}
+                          onChange={(value) => handleNormaRepartoChange(idx, "proyecto", value)}
+                          inputStyle={{ fontSize: "0.78em", padding: "3px 6px" }}
+                          containerStyle={{ flex: 1 }}
+                        />
                         <input type="text" className="doc-input" placeholder="Descripción" maxLength={100} style={{ flex: 1.5, fontSize: "0.78em", padding: "3px 6px" }} value={norma.descripcion || ""} onChange={(e) => handleNormaRepartoChange(idx, "descripcion", e.target.value)} />
                       </div>
                     </div>
@@ -345,14 +350,17 @@ export default function ModalRadicar({
             </div>
 
             <div style={{ display: "flex", gap: 8, marginBottom: 12 }}>
-              <input
-                type="text"
-                list="proyectos-radicar-list"
-                className="doc-input"
-                style={{ flex: 1, fontSize: "0.82em" }}
-                placeholder="Proyecto (opcional)"
+              <ProjectInput
+                listId="proyectos-radicar-list"
+                projects={proyectosCatalogo}
+                zones={sedesDisponibles}
+                zoneDefault={activoSucursalInput}
+                onCreateProject={handleCrearProyecto}
                 value={activoProyectoInput}
-                onChange={(e) => setActivoProyectoInput(e.target.value)}
+                onChange={setActivoProyectoInput}
+                placeholder="Proyecto (opcional)"
+                containerStyle={{ flex: 1 }}
+                inputStyle={{ fontSize: "0.82em" }}
               />
               <input
                 type="text"
@@ -389,7 +397,17 @@ export default function ModalRadicar({
                         <button className="btn-icon btn-toggle" onClick={() => handleRemoveActivoFijo(idx)} title="Quitar" style={{ width: 26, height: 26, flexShrink: 0 }}><i className="fa-solid fa-xmark"></i></button>
                       </div>
                       <div style={{ display: "flex", gap: 8 }}>
-                        <input type="text" list="proyectos-radicar-list" className="doc-input" placeholder="Proyecto" style={{ flex: 1, fontSize: "0.78em", padding: "3px 6px" }} value={activo.proyecto || ""} onChange={(e) => handleActivoFijoChange(idx, "proyecto", e.target.value)} />
+                        <ProjectInput
+                          listId="proyectos-radicar-list"
+                          projects={proyectosCatalogo}
+                          zones={sedesDisponibles}
+                          zoneDefault={activo.sucursal}
+                          onCreateProject={handleCrearProyecto}
+                          value={activo.proyecto || ""}
+                          onChange={(value) => handleActivoFijoChange(idx, "proyecto", value)}
+                          inputStyle={{ fontSize: "0.78em", padding: "3px 6px" }}
+                          containerStyle={{ flex: 1 }}
+                        />
                         <input type="text" className="doc-input" placeholder="Descripción" maxLength={100} style={{ flex: 1.5, fontSize: "0.78em", padding: "3px 6px" }} value={activo.descripcion || ""} onChange={(e) => handleActivoFijoChange(idx, "descripcion", e.target.value)} />
                       </div>
                     </div>

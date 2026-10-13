@@ -7,13 +7,28 @@ export function useSolicitudes(obtenerToken, activeTab, esAdmin) {
 
   useEffect(() => {
     if (activeTab !== "solicitudes") return;
-    setLoadingSolicitudes(true);
-    const endpoint = esAdmin ? `${API}/solicitud-rechazo` : `${API}/solicitud-rechazo/mias`;
-    fetch(endpoint, { headers: { Authorization: `Bearer ${obtenerToken()}` } })
-      .then(r => r.json())
-      .then(data => setSolicitudes(Array.isArray(data) ? data : []))
-      .catch(err => { console.error(err); setSolicitudes([]); })
-      .finally(() => setLoadingSolicitudes(false));
+    const controller = new AbortController();
+    const fetchData = async () => {
+      setLoadingSolicitudes(true);
+      const endpoint = esAdmin ? `${API}/solicitud-rechazo` : `${API}/solicitud-rechazo/mias`;
+      try {
+        const r = await fetch(endpoint, {
+          headers: { Authorization: `Bearer ${obtenerToken()}` },
+          signal: controller.signal,
+        });
+        const data = await r.json();
+        setSolicitudes(Array.isArray(data) ? data : []);
+      } catch (err) {
+        if (!controller.signal.aborted) {
+          console.error(err);
+          setSolicitudes([]);
+        }
+      } finally {
+        if (!controller.signal.aborted) setLoadingSolicitudes(false);
+      }
+    };
+    void fetchData();
+    return () => controller.abort();
   }, [activeTab, esAdmin, obtenerToken]);
 
   const handleDecidir = async (id, accept) => {

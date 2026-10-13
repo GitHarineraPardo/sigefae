@@ -45,6 +45,8 @@ func MigrateCargoIDs(database *gorm.DB) error {
 			"Auxiliar Compras Norte",
 			"Analista Compras Norte",
 			"Analista Compras Oriente",
+			"Auxiliar Admon Oriente",
+			"Auxiliar Admon Norte",
 		} {
 			if _, err := ensureCargo(name); err != nil {
 				return err

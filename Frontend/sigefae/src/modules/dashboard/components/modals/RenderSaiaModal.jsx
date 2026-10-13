@@ -15,24 +15,10 @@ export default function RenderSaiaModal({
   completandoTarea, handleCompletarTarea,
   solicitarRechazo, marcarCompletado, adminRechazar,
   esAdmin, esUsuario, userId, userRol, userCargoId,
-  setPdfEditor, activeTab, setSelectedTareaId, setSelectedRadicadoId,
+  setPdfEditor,  setSelectedTareaId, setSelectedRadicadoId,
   setShowDevolverModal, setDevolverForm,
   openNormaModal, handleEliminarNorma, activosFijosRadicado, openActivoModal, handleEliminarActivoFijo, readOnly: externalReadOnly
 }) {
-  if (!saiaModalOpen || !saiaRadicado) return null;
-  const archivosPdf = (saiaRadicado.archivos || []).filter(a => {
-    const ext = (a.extension || a.nombre?.split('.').pop() || '').toLowerCase();
-    return ['pdf', 'png', 'jpg', 'jpeg', 'webp', 'gif'].includes(ext);
-  });
-  const anexoActual = archivosPdf[saiaAnexoIdx];
-  const readOnly = isFinalState(saiaRadicado.estado_posesion) || externalReadOnly;
-  const esContabilidad = userRol === "Contabilidad";
-  const puedeGestionarRecurso = (creadoPorId) => {
-    if (esAdmin) return true;
-    const propietario = Number(creadoPorId || 0);
-    return propietario > 0 && propietario === Number(userId);
-  };
-
   // ── Resizable sidebar ──────────────────────────────────────
   const SIDEBAR_MIN = 320;
   const SIDEBAR_MAX_RATIO = 0.75; // 75% del viewport
@@ -81,6 +67,23 @@ export default function RenderSaiaModal({
     };
   }, []);
   // ────────────────────────────────────────────────────────────
+
+  if (!saiaModalOpen || !saiaRadicado) return null;
+
+  const archivos = Array.isArray(saiaRadicado.archivos) ? saiaRadicado.archivos : [];
+  const archivosPdf = archivos.filter(a => {
+    const ext = (a.extension || a.nombre?.split('.').pop() || '').toLowerCase();
+    return ['pdf', 'png', 'jpg', 'jpeg', 'webp', 'gif'].includes(ext);
+  });
+  const anexoActual = archivosPdf[saiaAnexoIdx];
+  const readOnly = isFinalState(saiaRadicado.estado_posesion) || externalReadOnly;
+  const esContabilidad = userRol === "Contabilidad";
+  const puedeGestionarRecurso = (creadoPorId) => {
+    if (esAdmin) return true;
+    const propietario = Number(creadoPorId || 0);
+    return propietario > 0 && propietario === Number(userId);
+  };
+
 
   return (
     <div className="saia-overlay" onClick={() => setSaiaModalOpen(false)}>
@@ -205,10 +208,10 @@ export default function RenderSaiaModal({
                     </button>
                   )}
                   <div className="doc-section" style={{ margin: 0, padding: 10 }}>
-                    <h4 style={{ fontSize: '0.75em', marginBottom: 8 }}><i className="fa-solid fa-paperclip"></i> Anexos ({(saiaRadicado.archivos || []).length})</h4>
-                    {(saiaRadicado.archivos || []).length === 0 ? <p style={{ fontSize: '0.8em', color: '#6b7280' }}>No hay anexos.</p> : (
+                    <h4 style={{ fontSize: '0.75em', marginBottom: 8 }}><i className="fa-solid fa-paperclip"></i> Anexos ({archivos.length})</h4>
+                    {archivos.length === 0 ? <p style={{ fontSize: '0.8em', color: '#6b7280' }}>No hay anexos.</p> : (
                       <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-                        {saiaRadicado.archivos.map(arch => (
+                        {archivos.map(arch => (
                           <div key={arch.id} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '6px 8px', background: '#f1f5f9', borderRadius: 6, fontSize: '0.8em' }}>
                             <i className={`fa-solid fa-file${['pdf','png','jpg','jpeg','webp','gif'].includes((arch.extension||'').toLowerCase()) ? (arch.extension?.toLowerCase()==='pdf' ? '-pdf' : '-image') : ''}`} style={{ color: 'var(--pardo-blue)' }}></i>
                             <span style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={arch.nombre}>{arch.nombre}</span>

@@ -14,7 +14,7 @@ export function useFlujoYTrazabilidad(obtenerToken, selectedRadicadoId, selected
 
   useEffect(() => {
     if (!radicadoId) {
-      setTareasFlujo([]); setHistorialTrazabilidad([]); setNormasRepartoRadicado([]); setActivosFijosRadicado([]); setComentarios([]); return;
+      const reset = async () => { setTareasFlujo([]); setHistorialTrazabilidad([]); setNormasRepartoRadicado([]); setActivosFijosRadicado([]); setComentarios([]); }; void reset(); return;
     }
     const headers = { Authorization: `Bearer ${obtenerToken()}` };
     const t = new Date().getTime();
@@ -28,11 +28,17 @@ export function useFlujoYTrazabilidad(obtenerToken, selectedRadicadoId, selected
       .then(r => r.json()).then(data => setActivosFijosRadicado(Array.isArray(data) ? data : [])).catch(() => setActivosFijosRadicado([]));
 
     let cancelled = false;
-    setComentarios([]);
-    fetch(`${API}/comentario?documento_radicado_id=${radicadoId}&_t=${t}`, { headers })
-      .then(r => r.json())
-      .then(data => { if (!cancelled) setComentarios(Array.isArray(data) ? data : []); })
-      .catch(err => { if (!cancelled) { console.error(err); setComentarios([]); } });
+    const fetchComentarios = async () => {
+      setComentarios([]);
+      try {
+        const r = await fetch(`${API}/comentario?documento_radicado_id=${radicadoId}&_t=${t}`, { headers });
+        const data = await r.json();
+        if (!cancelled) setComentarios(Array.isArray(data) ? data : []);
+      } catch (err) {
+        if (!cancelled) { console.error(err); setComentarios([]); }
+      }
+    };
+    void fetchComentarios();
     return () => { cancelled = true; };
   }, [radicadoId, obtenerToken]);
 

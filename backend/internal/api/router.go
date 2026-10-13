@@ -39,6 +39,7 @@ import (
 	"sigefae/internal/receptor"
 	"sigefae/internal/registro_aprobacion"
 	"sigefae/internal/regla_monto_ruta"
+	"sigefae/internal/regla_nit_ruta"
 	"sigefae/internal/responsabilidad_fiscal"
 	"sigefae/internal/role"
 	"sigefae/internal/ruta"
@@ -230,6 +231,8 @@ func New(database *gorm.DB) *gin.Engine {
 
 	reglaMontoRutaService := regla_monto_ruta.New(database)
 	reglaMontoRutaHandler := regla_monto_ruta.NewHandler(reglaMontoRutaService)
+	reglaNITRutaService := regla_nit_ruta.New(database)
+	reglaNITRutaHandler := regla_nit_ruta.NewHandler(reglaNITRutaService)
 
 	normaRepartoService := norma_reparto.New(database)
 	normaRepartoHandler := norma_reparto.NewHandler(normaRepartoService)
@@ -258,6 +261,7 @@ func New(database *gorm.DB) *gin.Engine {
 	{
 		// ── Cualquier usuario logueado puede leer radicados ──
 		protected.GET("/documentoradicado", documentoRadicadoHandler.List)
+protected.GET("/documentoradicado/mis-tareas", documentoRadicadoHandler.ListMisTareas)
 		protected.GET("/documentoradicado/:id", documentoRadicadoHandler.GetByID)
 		protected.PATCH("/documentoradicado/:id/causar", documentoRadicadoHandler.Causar)
 		protected.PATCH("/documentoradicado/:id/pagar", documentoRadicadoHandler.Pagar)
@@ -357,11 +361,6 @@ func New(database *gorm.DB) *gin.Engine {
 			// =========================
 			admin.POST("/usuarios", userHandler.Create)
 			admin.GET("/usuarios", userHandler.List)
-			admin.GET("/cargos/todos", cargoHandler.List)
-			admin.POST("/cargos", cargoHandler.Create)
-			admin.PATCH("/cargos/:id", cargoHandler.Update)
-			admin.PATCH("/cargos/:id/activo", cargoHandler.UpdateStatus)
-			admin.DELETE("/cargos/:id", cargoHandler.Delete)
 			admin.GET("/usuarios/:id", userHandler.GetByID)
 			admin.PUT("/usuarios/:id", userHandler.Update)
 			admin.PATCH("/usuarios/:id/activo", userHandler.UpdateStatus)
@@ -649,6 +648,11 @@ func New(database *gorm.DB) *gin.Engine {
 			admin.PUT("/regla-monto-ruta/:id", reglaMontoRutaHandler.Update)
 			admin.PATCH("/regla-monto-ruta/:id/activo", reglaMontoRutaHandler.UpdateStatus)
 			admin.DELETE("/regla-monto-ruta/:id", reglaMontoRutaHandler.Delete)
+			admin.POST("/regla-nit-ruta", reglaNITRutaHandler.Create)
+			admin.GET("/regla-nit-ruta", reglaNITRutaHandler.List)
+			admin.PUT("/regla-nit-ruta/:id", reglaNITRutaHandler.Update)
+			admin.PATCH("/regla-nit-ruta/:id/activo", reglaNITRutaHandler.UpdateStatus)
+			admin.DELETE("/regla-nit-ruta/:id", reglaNITRutaHandler.Delete)
 
 			// Normas de Reparto
 			admin.POST("/normas-reparto", normaRepartoHandler.Create)

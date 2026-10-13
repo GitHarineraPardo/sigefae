@@ -1,13 +1,23 @@
 import { useState } from "react";
 import { API } from "../constants/api";
 
+const fetchNoStore = (url, options = {}) => fetch(url, {
+  ...options,
+  cache: "no-store",
+  headers: {
+    ...options.headers,
+    "Cache-Control": "no-cache, no-store, must-revalidate",
+    Pragma: "no-cache",
+  },
+});
+
 export function useAnexos(obtenerToken, puedeGestionarRecurso, esAdmin, activeTab, setSelectedTareaId, setSelectedRadicadoId, saiaModalOpen, saiaRadicado, setSaiaRadicado, saiaAnexoIdx, setSaiaAnexoIdx, saiaPdfUrl, setSaiaPdfUrl) {
   const [generandoPdf, setGenerandoPdf] = useState(false);
 
   const handleVerAnexo = async (archivoId) => {
     const win = window.open("", "_blank");
     try {
-      const res = await fetch(`${API}/archivo/${archivoId}/download`, { headers: { Authorization: `Bearer ${obtenerToken()}` } });
+      const res = await fetchNoStore(`${API}/archivo/${archivoId}/download?_t=${Date.now()}`, { headers: { Authorization: `Bearer ${obtenerToken()}` } });
       if (!res.ok) { if (win) win.close(); throw new Error("Error obteniendo archivo"); }
       const blob = await res.blob(); const url = window.URL.createObjectURL(blob);
       if (win) win.location.href = url; else window.open(url, "_blank");
@@ -17,7 +27,7 @@ export function useAnexos(obtenerToken, puedeGestionarRecurso, esAdmin, activeTa
 
   const handleDescargarAnexo = async (archivoId, nombre) => {
     try {
-      const res = await fetch(`${API}/archivo/${archivoId}/download`, { headers: { Authorization: `Bearer ${obtenerToken()}` } });
+      const res = await fetchNoStore(`${API}/archivo/${archivoId}/download?_t=${Date.now()}`, { headers: { Authorization: `Bearer ${obtenerToken()}` } });
       if (!res.ok) throw new Error("Error descargando archivo");
       const blob = await res.blob(); const url = window.URL.createObjectURL(blob);
       const a = document.createElement("a"); a.href = url; a.download = nombre;

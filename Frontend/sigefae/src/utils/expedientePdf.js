@@ -36,7 +36,7 @@ export async function generarExpedientePDF(radicado, flujo, trazabilidad, anexos
       const desc = rawDesc.length > 80 ? rawDesc.substring(0, 77) + "..." : rawDesc;
       
       return [
-        n.norma_reparto?.nombre || n.nombre || "",
+        n.norma_reparto?.codigo || n.codigo || "",
         n.norma_reparto?.departamento || n.departamento || "",
         proj,
         desc,
@@ -55,7 +55,7 @@ export async function generarExpedientePDF(radicado, flujo, trazabilidad, anexos
 
     autoTable(docPortada, {
       startY: 30,
-      head: [["Norma", "Área", "Proyecto", "Descripción", "%", "Valor Aplicado"]],
+      head: [["N.º Norma", "Área", "Proyecto", "Descripción", "%", "Valor Aplicado"]],
       body: normasData,
       theme: 'grid',
       headStyles: { fillColor: [200, 160, 30] },

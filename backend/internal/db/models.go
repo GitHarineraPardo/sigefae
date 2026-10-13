@@ -28,6 +28,7 @@ func CircularModels() []any {
 		&SolicitudPermiso{},
 		&Comentario{}, &Trazabilidad{}, &RegistroAprobacion{},
 		&Notificacion{}, &ReglaMontoRuta{},
+		&ReglaNITRuta{},
 		&RadicadoNormaReparto{},
 		&ProveedorNormaReparto{},
 		&RadicadoActivoFijo{},

@@ -1,4 +1,4 @@
-export default function RenderCorreos({ correos, selectedCorreoId, setSelectedCorreoId, correoDetail, loading, searchCorreos, setSearchCorreos, sortCorreos, setSortCorreos, handleVerArchivo, getFilteredCorreos }) {
+export default function RenderCorreos({ selectedCorreoId, setSelectedCorreoId, correoDetail, loading, searchCorreos, setSearchCorreos, sortCorreos, setSortCorreos, handleVerArchivo, getFilteredCorreos }) {
   const filteredList = getFilteredCorreos();
   return (
     <div className="correos-container">

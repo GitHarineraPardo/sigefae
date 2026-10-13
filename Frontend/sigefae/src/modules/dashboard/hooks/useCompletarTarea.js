@@ -11,7 +11,7 @@ export function useCompletarTarea(obtenerToken, userId, activeTab, setTareasFluj
       const res = await fetch(`${API}/tarea/${tareaId}/completar`, { method: "PATCH", headers: { Authorization: `Bearer ${obtenerToken()}` } });
       let errMsg = null;
       if (!res.ok) {
-        try { const errData = await res.json(); errMsg = errData.error || ""; } catch (e) { errMsg = "Error completando tarea"; }
+        try { const errData = await res.json(); errMsg = errData.error || ""; } catch { errMsg = "Error completando tarea"; }
       }
       if (errMsg && !errMsg.toLowerCase().includes("ya está completada")) throw new Error(errMsg);
       if (!errMsg) alert("Tarea completada correctamente");

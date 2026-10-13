@@ -16,7 +16,7 @@ func New(database *gorm.DB) *Service {
 
 func (s *Service) List() ([]db.ReglaMontoRuta, error) {
 	var items []db.ReglaMontoRuta
-	err := s.db.Preload("Area").Preload("Ruta").Preload("UsuarioAprobador").Preload("CargoAprobador").Preload("RolAprobador").
+	err := s.db.Preload("Area").Preload("Ruta.Area").Preload("UsuarioAprobador").Preload("CargoAprobador").Preload("RolAprobador").
 		Where("activo = ?", true).Order("monto_minimo_smmlv ASC").Find(&items).Error
 	return items, err
 }
@@ -26,7 +26,9 @@ func (s *Service) Create(item *db.ReglaMontoRuta) error {
 }
 
 func (s *Service) Update(id uint, item *db.ReglaMontoRuta) error {
-	return s.db.Model(&db.ReglaMontoRuta{}).Where("id = ?", id).Updates(item).Error
+	return s.db.Model(&db.ReglaMontoRuta{}).Where("id = ?", id).
+		Select("ruta_id", "monto_minimo_smmlv", "monto_maximo_smmlv", "posicion_insercion", "prioridad", "cargo_aprobador_id").
+		Updates(item).Error
 }
 
 func (s *Service) Delete(id uint) error {

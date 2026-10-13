@@ -4,10 +4,12 @@ export default function RenderCatalogos({
   catalogoActivo, setCatalogoActivo, catalogoItems, catalogoLoading,
   showCatalogoForm, setShowCatalogoForm, catalogoEditing, catalogoForm,
   showDeleteConfirm, confirmDeleteCatalogo, cancelDeleteCatalogo, handleDeleteCatalogo,
-  tiposPagoCatalogo, areasCatalogo, rutasCatalogo, usuariosCatalogo, cargosCatalogo, monedasCatalogo,
+  tiposPagoCatalogo, areasCatalogo, rutasCatalogo, usuariosCatalogo, cargosCatalogo,  proveedoresCatalogo,
   cfg, openCatalogoCreate, openCatalogoEdit, handleCatalogoFormChange,
   handleCatalogoSubmit, handleToggleCatalogoStatus
 }) {
+  const proveedores = Array.isArray(proveedoresCatalogo) ? proveedoresCatalogo : [];
+
   const renderFormField = (field) => {
     const value = catalogoForm[field] || "";
     if (field === "tipo_pago_id") return (
@@ -32,8 +34,8 @@ export default function RenderCatalogos({
       </div>
     );
     if (field === "ruta_id") return (
-      <div className="modal-field" key={field}><label>Ruta <span className="required">*</span></label>
-        <select name={field} value={value} onChange={handleCatalogoFormChange} className="doc-input"><option value="">Seleccione...</option>{rutasCatalogo.map(r => <option key={r.id} value={r.id}>{r.zona || "Sin zona"} · {r.area || "Sin área"} · {r.nombre}</option>)}</select>
+      <div className="modal-field" key={field}><label>Ruta de aplicación</label>
+        <select name={field} value={value} onChange={handleCatalogoFormChange} className="doc-input"><option value="">Global (todas las rutas)</option>{rutasCatalogo.map(r => <option key={r.id} value={r.id}>{r.zona || "Sin zona"} · {r.area || "Sin área"} · {r.nombre}</option>)}</select>
       </div>
     );
     if (field === "usuario_id" || field === "usuario_aprobador_id") return (
@@ -43,15 +45,28 @@ export default function RenderCatalogos({
     );
     if (field === "orden") return <div className="modal-field" key={field} style={{ maxWidth: 120 }}><label>Orden <span className="required">*</span></label><input type="number" name={field} value={value} onChange={handleCatalogoFormChange} min="1" className="doc-input" /></div>;
     if (field === "monto_minimo_smmlv") return <div className="modal-field" key={field} style={{ maxWidth: 160 }}><label>Mínimo SMMLV <span className="required">*</span></label><input type="number" step="0.01" name={field} value={value} onChange={handleCatalogoFormChange} min="0" className="doc-input" /></div>;
+    if (field === "nit") return (
+      <div className="modal-field" key={field} style={{ minWidth: 280, flex: 1 }}>
+        <label>Proveedor (NIT y razón social) <span className="required">*</span></label>
+        <select name={field} value={String(value).replace(/\D/g, "")} onChange={handleCatalogoFormChange} className="doc-input" disabled={proveedores.length === 0}>
+          <option value="">{proveedores.length ? "Seleccione un proveedor..." : "No hay proveedores con tipo NIT"}</option>
+          {proveedores.map(proveedor => {
+            const nit = String(proveedor.numero_documento || "").replace(/\D/g, "");
+            const nombre = proveedor.razon_social || proveedor.nombre_comercial || "Sin razón social";
+            return <option key={proveedor.id} value={nit}>{proveedor.numero_documento} | {nombre}</option>;
+          })}
+        </select>
+      </div>
+    );
     if (field === "monto_maximo_smmlv") return <div className="modal-field" key={field} style={{ maxWidth: 160 }}><label>Máximo SMMLV <span className="required">*</span></label><input type="number" step="0.01" name={field} value={value} onChange={handleCatalogoFormChange} min="0" title="Dejar en 0 para sin límite" className="doc-input" /></div>;
     if (field === "ano") return <div className="modal-field" key={field} style={{ maxWidth: 120 }}><label>Año <span className="required">*</span></label><input type="number" name={field} value={value} onChange={handleCatalogoFormChange} min="2000" className="doc-input" /></div>;
     if (field === "valor") return <div className="modal-field" key={field} style={{ maxWidth: 200 }}><label>Valor ($) <span className="required">*</span></label><input type="number" name={field} value={value} onChange={handleCatalogoFormChange} min="0" className="doc-input" /></div>;
     if (field === "posicion_insercion") return (
-      <div className="modal-field" key={field}><label>Posición Inserción <span className="required">*</span></label>
-        <select name={field} value={value} onChange={handleCatalogoFormChange} className="doc-input"><option value="">Seleccione...</option><option value="PRIMERO">Al inicio</option><option value="ANTES_FINAL">Antes del final</option><option value="ULTIMO">Al final</option></select>
+      <div className="modal-field" key={field}><label>Posición en ruta <span className="required">*</span></label>
+      <select name={field} value={value} onChange={handleCatalogoFormChange} className="doc-input" title="Se cuentan solo los pasos configurados en la ruta. El cierre fijo AuxAdmonOriente no cuenta."><option value="">Seleccione...</option><option value="PRIMERO">Al inicio</option><option value="ANTES_FINAL">Antes del final</option><option value="ULTIMO">Al final</option></select>
       </div>
     );
-    if (field === "prioridad") return <div className="modal-field" key={field} style={{ maxWidth: 120 }}><label>Prioridad <span className="required">*</span></label><input type="number" name={field} value={value} onChange={handleCatalogoFormChange} min="0" placeholder="0" title="Menor número = se ejecuta primero dentro de su posición" className="doc-input" /></div>;
+    if (field === "prioridad") return <div className="modal-field" key={field} style={{ maxWidth: 120 }}><label>Prioridad <span className="required">*</span></label><input type="number" name={field} value={value} onChange={handleCatalogoFormChange} min="0" placeholder="0" title="Menor número va primero. En empate, monto antes que NIT." className="doc-input" /></div>;
     if (field === "codigo") return <div className="modal-field" key={field} style={{ flex: 1 }}><label>Código <span className="required">*</span></label><input type="text" name={field} value={value} onChange={handleCatalogoFormChange} placeholder="Ej: BU101" className="doc-input" /></div>;
     if (field === "proyecto") return <div className="modal-field" key={field} style={{ flex: 1 }}><label>Proyecto <span className="required">*</span></label><input type="text" name={field} value={value} onChange={handleCatalogoFormChange} placeholder="Ej: PROY-001" className="doc-input" required /></div>;
     if (field === "descripcion") return <div className="modal-field" key={field} style={{ width: "100%" }}><label>Descripción <small style={{ float: "right", color: value.length >= 100 ? "#ef4444" : "#6b7280" }}>{value.length}/100</small></label><textarea name={field} value={value} onChange={handleCatalogoFormChange} placeholder="Descripción opcional..." className="doc-input" rows="2" maxLength={100} /></div>;
@@ -73,20 +88,33 @@ export default function RenderCatalogos({
   };
 
   const getColumnLabel = (field) => {
-    const map = { nombre: "Nombre", codigo: "Código", proyecto: "Proyecto", descripcion: "Descripción", zona: "Zona", sucursal: "Sucursal", departamento: "Depto", tipo: "Tipo", tarifa_iva: "Tarifa IVA", tipo_pago: "Tipo de Pago", area: "Área", ruta: "Ruta", orden: "Orden", usuario: "Usuario", cargo_id: "Cargo", prioridad: "Prioridad", cargo_aprobador_id: "Cargo Aprobador", moneda_id: "Moneda", monto_minimo: "Monto Mínimo", monto_minimo_smmlv: "Mín. SMMLV", monto_maximo_smmlv: "Máx. SMMLV", posicion_insercion: "Posición", ano: "Año", valor: "Valor" };
+    const map = { nombre: "Nombre", nit: "NIT", codigo: "Código", proyecto: "Proyecto", descripcion: "Descripción", zona: "Zona", sucursal: "Sucursal", departamento: "Depto", tipo: "Tipo", tarifa_iva: "Tarifa IVA", tipo_pago: "Tipo de Pago", area: "Área", ruta: "Ruta", orden: "Orden", usuario: "Usuario", cargo_id: "Cargo", prioridad: "Prioridad", cargo_aprobador_id: "Cargo Aprobador", moneda_id: "Moneda", monto_minimo: "Monto Mínimo", monto_minimo_smmlv: "Mín. SMMLV", monto_maximo_smmlv: "Máx. SMMLV", posicion_insercion: "Posición", ano: "Año", valor: "Valor" };
     return map[field] || field;
   };
 
   const getItemDisplay = (item, field) => {
     if (field === "tipo_pago_id") return item.tipo_pago || "—";
     if (field === "area_id") return item.area || "—";
-    if (field === "ruta_id") return item.ruta || "—";
+    if (field === "ruta_id") {
+      if (!item.ruta_id) return "Global (todas las rutas)";
+      if (!item.ruta) return `Ruta #${item.ruta_id}`;
+      if (typeof item.ruta === "string") return item.ruta;
+      const area = item.ruta.area?.nombre || item.ruta.area || "Sin área";
+      return `${item.ruta.zona || "Sin zona"} · ${area} · ${item.ruta.nombre || item.ruta_id}`;
+    }
     if (field === "usuario_id") return item.usuario || "—";
     if (field === "usuario_aprobador_id") return item.usuario_aprobador?.nombre || item.usuario_aprobador_id || "—";
     if (field === "cargo_id") return item.cargo || "—";
     if (field === "cargo_aprobador_id") return item.cargo_aprobador?.nombre || item.cargo_aprobador_id || "—";
+    if (field === "nit") {
+      const nitNormalizado = String(item.nit || "").replace(/\D/g, "");
+      const proveedor = proveedores.find(p => String(p?.numero_documento || "").replace(/\D/g, "") === nitNormalizado);
+      const nombre = proveedor?.razon_social || proveedor?.nombre_comercial || "Proveedor no encontrado";
+      return `${item.nit} | ${nombre}`;
+    }
     if (field === "moneda_id") return item.moneda ? `${item.moneda.nombre} (${item.moneda.codigo})` : item.moneda_id || "—";
     if (field === "monto_minimo_smmlv" || field === "monto_maximo_smmlv") return item[field] !== undefined && item[field] !== null ? `${item[field]} SMMLV` : "0 SMMLV";
+    if (field === "posicion_insercion") return ({ PRIMERO: "Inicio de ruta", ANTES_FINAL: "Antes del último paso", ULTIMO: "Tras la ruta, antes del cierre del sistema" })[item[field]] || item[field] || "—";
     if (field === "valor") return item[field] !== undefined && item[field] !== null ? `$${Number(item[field]).toLocaleString()}` : "—";
     if (field === "zona") return item.zona || "BUCARAMANGA";
     if ((field === "tipo" || field === "tarifa_iva") && !item[field]) return "—";

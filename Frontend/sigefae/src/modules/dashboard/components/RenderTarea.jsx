@@ -1,4 +1,4 @@
-import { isFinalState } from "../helpers/formatters";
+import {  } from "../helpers/formatters";
 
 export default function RenderTareas({
   misTareas, misTareasCompletadas, selectedTareaId, loadingTareas,

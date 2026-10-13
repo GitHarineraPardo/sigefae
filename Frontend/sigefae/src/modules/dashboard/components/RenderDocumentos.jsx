@@ -1,7 +1,7 @@
 import { formatCurrency } from "../helpers/formatters";
 
 export default function RenderDocumentos({
-  documentos, selectedDocId, setSelectedDocId, docDetail, loadingDocs,
+  selectedDocId, setSelectedDocId, docDetail, loadingDocs,
   searchDocs, setSearchDocs, sortDocs, setSortDocs, getFilteredDocs,
   esAdmin, openCrearDocModal, openRadicarModal
 }) {

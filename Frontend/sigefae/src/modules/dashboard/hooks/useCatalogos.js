@@ -19,6 +19,7 @@ export function useCatalogos(obtenerToken, activeTab) {
   const [usuariosCatalogo, setUsuariosCatalogo] = useState([]);
   const [cargosCatalogo, setCargosCatalogo] = useState([]);
   const [monedasCatalogo, setMonedasCatalogo] = useState([]);
+  const [proveedoresCatalogo, setProveedoresCatalogo] = useState([]);
 
   const cfg = catalogoConfig[catalogoActivo];
 
@@ -27,9 +28,9 @@ export function useCatalogos(obtenerToken, activeTab) {
     setCatalogoLoading(true);
     try {
       const cacheBuster = `_t=${new Date().getTime()}`;
-      const endpoint = tipo === "cargos" ? "cargos/todos" : c.endpoint;
-      const url = `${API}/${endpoint}${endpoint.includes('?') ? '&' : '?'}${cacheBuster}`;
+      const url = `${API}/${c.endpoint}?${cacheBuster}`;
       const res = await fetch(url, { headers: { Authorization: `Bearer ${obtenerToken()}` } });
+      if (!res.ok) throw new Error(`No se pudo cargar el catálogo ${tipo} (${res.status})`);
       const data = await res.json();
       setCatalogoItems(Array.isArray(data) ? data : []);
     } catch (err) { console.error(err); setCatalogoItems([]); }
@@ -41,10 +42,22 @@ export function useCatalogos(obtenerToken, activeTab) {
     if (activeTab !== "catalogos") return;
     const headers = { Authorization: `Bearer ${obtenerToken()}` };
     const t = `?_t=${new Date().getTime()}`;
+    if (catalogoActivo === "reglas-nit") {
+      fetch(`${API}/proveedor${t}`, { headers })
+        .then(res => {
+          if (!res.ok) throw new Error(`No se pudieron cargar los proveedores (${res.status})`);
+          return res.json();
+        })
+        .then(data => setProveedoresCatalogo(Array.isArray(data) ? data : []))
+        .catch(err => {
+          console.error(err);
+          setProveedoresCatalogo([]);
+        });
+    }
     if (catalogoActivo === "reglas-monto") fetch(`${API}/monedas${t}`, { headers }).then(r => r.ok ? r.json() : []).then(d => setMonedasCatalogo(Array.isArray(d) ? d : [])).catch(() => setMonedasCatalogo([]));
     if (catalogoActivo === "metodos-pago") fetch(`${API}/tipos-pago${t}`, { headers }).then(r => r.json()).then(d => setTiposPagoCatalogo(Array.isArray(d) ? d : []));
     if (catalogoActivo === "rutas" || catalogoActivo === "pasos-ruta") fetch(`${API}/areas${t}`, { headers }).then(r => r.json()).then(d => setAreasCatalogo(Array.isArray(d) ? d : []));
-    if (catalogoActivo === "pasos-ruta") fetch(`${API}/rutas${t}`, { headers }).then(r => r.json()).then(d => setRutasCatalogo(Array.isArray(d) ? d : [])).catch(err => console.error(err));
+    if (catalogoActivo === "pasos-ruta" || catalogoActivo === "reglas-monto") fetch(`${API}/rutas${t}`, { headers }).then(r => r.json()).then(d => setRutasCatalogo(Array.isArray(d) ? d : [])).catch(err => console.error(err));
     if (catalogoActivo === "pasos-ruta" || catalogoActivo === "reglas-monto") {
       fetch(`${API}/usuarios${t}`, { headers }).then(r => r.json()).then(d => setUsuariosCatalogo(Array.isArray(d) ? d : []));
       fetch(`${API}/cargos${t}`, { headers }).then(r => r.json()).then(d => setCargosCatalogo(Array.isArray(d) ? d : []));
@@ -79,7 +92,11 @@ const handleCatalogoSubmit = async () => {
 
   cfg.fields.forEach(f => {
     const val = catalogoForm[f];
-    if (f === "orden" || f.includes("_id") || f.includes("monto") || f === "prioridad" || f === "ano" || f === "valor") {
+  if (f === "ruta_id" && (val === "" || val === undefined || val === null)) {
+    body[f] = null;
+    return;
+  }
+  if (f === "orden" || f.includes("_id") || f.includes("monto") || f === "prioridad" || f === "ano" || f === "valor") {
       if (val !== "" && val !== undefined && val !== null) {
         body[f] = parseFloat(val);
       }
@@ -165,7 +182,7 @@ const handleCatalogoSubmit = async () => {
     catalogoActivo, setCatalogoActivo, catalogoItems, catalogoLoading,
     showCatalogoForm, setShowCatalogoForm, catalogoEditing, catalogoForm,
     catalogoToDelete, showDeleteConfirm, confirmDeleteCatalogo, cancelDeleteCatalogo, handleDeleteCatalogo,
-    tiposPagoCatalogo, areasCatalogo, rutasCatalogo, usuariosCatalogo, cargosCatalogo, monedasCatalogo,
+    tiposPagoCatalogo, areasCatalogo, rutasCatalogo, usuariosCatalogo, cargosCatalogo, monedasCatalogo, proveedoresCatalogo,
     cfg, openCatalogoCreate, openCatalogoEdit, handleCatalogoFormChange,
     handleCatalogoSubmit, handleToggleCatalogoStatus
   };

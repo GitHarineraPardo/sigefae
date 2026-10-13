@@ -69,7 +69,7 @@ export default function ProcesosLogistica() {
   // Hooks de datos
   const correosHook = useCorreos(obtenerToken, activeTab);
   const documentosHook = useDocumentos(obtenerToken, activeTab);
-  const radicadosHook = useRadicados(obtenerToken, activeTab, userId);
+  const radicadosHook = useRadicados(obtenerToken, activeTab);
   const tareasHook = useTareas(obtenerToken, activeTab, userId, userCargoId);
   const catalogosHook = useCatalogos(obtenerToken, activeTab);
   const solicitudesHook = useSolicitudes(obtenerToken, activeTab, esAdmin);

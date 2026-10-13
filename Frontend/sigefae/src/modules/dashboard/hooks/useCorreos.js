@@ -11,23 +11,46 @@ export function useCorreos(obtenerToken, activeTab) {
 
   useEffect(() => {
     if (activeTab !== "correos") return;
-    setLoading(true);
-    const t = `?_t=${new Date().getTime()}`;
-    fetch(`${API}/correo${t}`, { headers: { Authorization: `Bearer ${obtenerToken()}` } })
-      .then((res) => res.json())
-      .then((data) => { if (Array.isArray(data)) setCorreos(data); })
-      .catch((err) => console.error(err))
-      .finally(() => setLoading(false));
+    const controller = new AbortController();
+    const fetchData = async () => {
+      setLoading(true);
+      const t = `?_t=${new Date().getTime()}`;
+      try {
+        const res = await fetch(`${API}/correo${t}`, {
+          headers: { Authorization: `Bearer ${obtenerToken()}` },
+          signal: controller.signal,
+        });
+        const data = await res.json();
+        if (Array.isArray(data)) setCorreos(data);
+      } catch (err) {
+        if (!controller.signal.aborted) console.error(err);
+      } finally {
+        if (!controller.signal.aborted) setLoading(false);
+      }
+    };
+    void fetchData();
+    return () => controller.abort();
   }, [activeTab, obtenerToken]);
 
   useEffect(() => {
     if (!selectedCorreoId) return;
-    setCorreoDetail(null);
-    const t = `?_t=${new Date().getTime()}`;
-    fetch(`${API}/correo/${selectedCorreoId}${t}`, { headers: { Authorization: `Bearer ${obtenerToken()}` } })
-      .then((res) => res.json())
-      .then((data) => { if (data?.id) setCorreoDetail(data); })
-      .catch((err) => console.error(err));
+    const controller = new AbortController();
+    const fetchData = async () => {
+      setCorreoDetail(null);
+      const t = `?_t=${new Date().getTime()}`;
+      try {
+        const res = await fetch(`${API}/correo/${selectedCorreoId}${t}`, {
+          headers: { Authorization: `Bearer ${obtenerToken()}` },
+          signal: controller.signal,
+        });
+        const data = await res.json();
+        if (data?.id) setCorreoDetail(data);
+      } catch (err) {
+        if (!controller.signal.aborted) console.error(err);
+      }
+    };
+    void fetchData();
+    return () => controller.abort();
   }, [selectedCorreoId, obtenerToken]);
 
   const handleVerArchivo = (filename) => {

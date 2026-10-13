@@ -100,6 +100,16 @@ func (h *Handler) Create(c *gin.Context) {
 	c.JSON(http.StatusCreated, response)
 }
 
+func (h *Handler) ListMisTareas(c *gin.Context) {
+	user := c.MustGet("user").(db.Usuario)
+	response, err := h.service.ListMisTareas(user)
+	if err != nil {
+		c.JSON(500, gin.H{"error": err.Error()})
+		return
+	}
+	c.JSON(200, response)
+}
+
 func (h *Handler) List(c *gin.Context) {
 	response, err := h.service.List()
 	if err != nil {

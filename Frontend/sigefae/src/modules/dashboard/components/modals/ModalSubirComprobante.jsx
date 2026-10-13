@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import { useState } from 'react';
 import { API } from '../../constants/api';
 
 export default function ModalSubirComprobante({

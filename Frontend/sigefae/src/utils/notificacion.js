@@ -1,5 +1,3 @@
-
-let audioCtx = null;
 // ============================================
 // SONIDO de notificación (archivo personalizado)
 // ============================================

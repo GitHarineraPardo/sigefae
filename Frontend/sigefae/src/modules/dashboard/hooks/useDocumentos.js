@@ -36,13 +36,24 @@ export function useDocumentos(obtenerToken, activeTab) {
   useEffect(() => {
     if (activeTab !== "documentos") return;
     const headers = { Authorization: `Bearer ${obtenerToken()}` };
-    setLoadingDocs(true);
-    const t1 = `?_t=${new Date().getTime()}`;
-    fetch(`${API}/documentocomercial/pendientes${t1}`, { headers })
-      .then((res) => res.json())
-      .then((data) => { if (Array.isArray(data)) setDocumentos(data); })
-      .catch((err) => console.error(err))
-      .finally(() => setLoadingDocs(false));
+    const controller = new AbortController();
+    const fetchData = async () => {
+      setLoadingDocs(true);
+      const t1 = `?_t=${new Date().getTime()}`;
+      try {
+        const res = await fetch(`${API}/documentocomercial/pendientes${t1}`, {
+          headers,
+          signal: controller.signal,
+        });
+        const data = await res.json();
+        if (Array.isArray(data)) setDocumentos(data);
+      } catch (err) {
+        if (!controller.signal.aborted) console.error(err);
+      } finally {
+        if (!controller.signal.aborted) setLoadingDocs(false);
+      }
+    };
+    void fetchData();
 
     const t2 = `_t=${new Date().getTime()}`;
     fetch(`${API}/proveedor?${t2}`, { headers }).then(r => r.json()).then(d => setProveedoresCatalogo(Array.isArray(d) ? d : [])).catch(() => setProveedoresCatalogo([]));
@@ -50,16 +61,29 @@ export function useDocumentos(obtenerToken, activeTab) {
     if (areasCatalogo.length === 0) fetch(`${API}/areas?${t2}`, { headers }).then(r => r.json()).then(d => setAreasCatalogo(Array.isArray(d) ? d : [])).catch(() => {});
     if (monedasCatalogo.length === 0) fetch(`${API}/monedas?${t2}`, { headers }).then(r => r.json()).then(d => setMonedasCatalogo(Array.isArray(d) ? d : [])).catch(() => {});
     fetch(`${API}/tipo-documento?${t2}`, { headers }).then(r => r.json()).then(d => setTiposDocumentoCatalogo(Array.isArray(d) ? d : [])).catch(() => setTiposDocumentoCatalogo([]));
+
+    return () => controller.abort();
   }, [activeTab, obtenerToken]);
 
   useEffect(() => {
     if (!selectedDocId) return;
-    setDocDetail(null);
-    const t = `?_t=${new Date().getTime()}`;
-    fetch(`${API}/documentocomercial/${selectedDocId}${t}`, { headers: { Authorization: `Bearer ${obtenerToken()}` } })
-      .then((res) => res.json())
-      .then((data) => { if (data?.id) setDocDetail(data); })
-      .catch((err) => console.error(err));
+    const controller = new AbortController();
+    const fetchDetail = async () => {
+      setDocDetail(null);
+      const t = `?_t=${new Date().getTime()}`;
+      try {
+        const res = await fetch(`${API}/documentocomercial/${selectedDocId}${t}`, {
+          headers: { Authorization: `Bearer ${obtenerToken()}` },
+          signal: controller.signal,
+        });
+        const data = await res.json();
+        if (data?.id) setDocDetail(data);
+      } catch (err) {
+        if (!controller.signal.aborted) console.error(err);
+      }
+    };
+    void fetchDetail();
+    return () => controller.abort();
   }, [selectedDocId, obtenerToken]);
 
   const recalcularTotales = (detalles) => {

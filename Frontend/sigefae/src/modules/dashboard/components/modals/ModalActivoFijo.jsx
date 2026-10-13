@@ -1,10 +1,11 @@
 import { formatCurrency } from "../../helpers/formatters";
+import ProjectInput from "./ProjectInput.jsx";
 
 export default function ModalActivoFijo({
   showActivoModal, setShowActivoModal, activoEditandoId,
   activoFormDetalle, setActivoFormDetalle,
   activoModalRadicadoId, proyectosDisponibles, sedesDisponibles,
-  handleGuardarActivoFijo, subtotalRadicado
+  handleGuardarActivoFijo, handleCrearProyecto, subtotalRadicado
 }) {
   if (!showActivoModal) return null;
 
@@ -83,19 +84,16 @@ export default function ModalActivoFijo({
           <div style={{ display: "flex", gap: 10, marginTop: 10 }}>
             <div className="modal-field" style={{ flex: 1 }}>
               <label>Proyecto</label>
-              <input
-                type="text"
-                list="activo-proyectos-list"
-                className="doc-input"
+              <ProjectInput
+                listId="activo-proyectos-list"
+                projects={proyectosDisponibles}
+                zones={sedesDisponibles}
+                zoneDefault={activoFormDetalle.sucursal}
+                onCreateProject={handleCrearProyecto}
                 value={activoFormDetalle.proyecto || ""}
-                onChange={(e) => setActivoFormDetalle(prev => ({ ...prev, proyecto: e.target.value }))}
+                onChange={(value) => setActivoFormDetalle(prev => ({ ...prev, proyecto: value }))}
                 placeholder="Seleccione o escriba un proyecto..."
               />
-              <datalist id="activo-proyectos-list">
-                {(proyectosDisponibles || []).map(p => (
-                  <option key={p.id} value={p.nombre} />
-                ))}
-              </datalist>
             </div>
             <div className="modal-field" style={{ flex: 2 }}>
               <label>

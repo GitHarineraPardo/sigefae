@@ -71,7 +71,7 @@ const loadSignatureFromStorage = () => {
   }
 };
 
-export default function PdfEditor({ archivoId, archivoNombre, radicadoId, onClose, onSaved }) {
+export default function PdfEditor({ archivoId, archivoNombre, onClose, onSaved }) {
   const [pdfBytes, setPdfBytes] = useState(null);
   const [currentPage, setCurrentPage] = useState(1);
   const [numPages, setNumPages] = useState(1);
@@ -102,6 +102,27 @@ export default function PdfEditor({ archivoId, archivoNombre, radicadoId, onClos
   const canvasRef = useRef(null);
   const sigCanvas = useRef(null);
   const pdfDocRef = useRef(null); // documento pdf.js cacheado, para re-renderizar en resize
+
+  const renderPage = useCallback(async (pageNum) => {
+    const pdf = pdfDocRef.current;
+    if (!pdf) return;
+
+    const page = await pdf.getPage(pageNum);
+    const viewport1 = page.getViewport({ scale: 1 });
+
+    const targetWidth = viewerWrapRef.current?.clientWidth || viewport1.width;
+    const scale = targetWidth / viewport1.width;
+
+    setPageSize({ w: viewport1.width, h: viewport1.height });
+    setRenderScale(scale);
+
+    const viewport = page.getViewport({ scale });
+    const canvas = canvasRef.current;
+    canvas.width = viewport.width;
+    canvas.height = viewport.height;
+    const ctx = canvas.getContext("2d");
+    await page.render({ canvasContext: ctx, viewport }).promise;
+  }, []);
 
   // ── Cargar y renderizar el PDF en un <canvas> (reemplaza al iframe) ──
   useEffect(() => {
@@ -143,29 +164,9 @@ export default function PdfEditor({ archivoId, archivoNombre, radicadoId, onClos
     return () => {
       cancelled = true;
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [archivoId]);
+  }, [archivoId, renderPage]);
 
-  const renderPage = useCallback(async (pageNum) => {
-    const pdf = pdfDocRef.current;
-    if (!pdf) return;
-
-    const page = await pdf.getPage(pageNum);
-    const viewport1 = page.getViewport({ scale: 1 });
-
-    const targetWidth = viewerWrapRef.current?.clientWidth || viewport1.width;
-    const scale = targetWidth / viewport1.width;
-
-    setPageSize({ w: viewport1.width, h: viewport1.height });
-    setRenderScale(scale);
-
-    const viewport = page.getViewport({ scale });
-    const canvas = canvasRef.current;
-    canvas.width = viewport.width;
-    canvas.height = viewport.height;
-    const ctx = canvas.getContext("2d");
-    await page.render({ canvasContext: ctx, viewport }).promise;
-  }, []);
+  // (renderPage fue movido arriba)
 
   // Re-renderizar si cambia el ancho disponible (p. ej. resize de ventana)
   useEffect(() => {
