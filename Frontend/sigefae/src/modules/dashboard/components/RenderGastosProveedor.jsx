@@ -2,10 +2,18 @@ import { useMemo } from "react";
 import "./RenderGastosProveedor.css";
 import { formatCurrency } from "../helpers/formatters.js";
 
+const CHART_COLORS = [
+  "#1e3a5f",
+  "#2c5282",
+  "#edab00",
+  "#168b8b",
+  "#8055a3",
+  "#df7041",
+];
+
 export default function RenderGastosProveedor({
   gastosHook,
   openSaia,
-  esAdmin,
   userCargo,
 }) {
   const {
@@ -13,9 +21,6 @@ export default function RenderGastosProveedor({
     loading,
     error,
     refetch,
-    cargoSeleccionado,
-    setCargoSeleccionado,
-    cargosDisponibles,
     fechaDesde,
     setFechaDesde,
     fechaHasta,
@@ -95,6 +100,47 @@ export default function RenderGastosProveedor({
     return proveedoresDisponibles.slice(0, 10);
   }, [proveedoresDisponibles]);
 
+  const gastoChart = useMemo(() => {
+    const proveedoresConGasto = proveedoresDisponibles.filter(
+      (proveedor) => Number(proveedor.total_gastado) > 0
+    );
+    const principales = proveedoresConGasto.slice(0, 5).map((proveedor) => ({
+      id: proveedor.id,
+      nombre: proveedor.razon_social,
+      total: Number(proveedor.total_gastado),
+    }));
+    const otrosTotal = proveedoresConGasto
+      .slice(5)
+      .reduce((total, proveedor) => total + Number(proveedor.total_gastado), 0);
+
+    if (otrosTotal > 0) {
+      principales.push({
+        id: "otros",
+        nombre: "Otros proveedores",
+        total: otrosTotal,
+      });
+    }
+
+    const total = principales.reduce((sum, proveedor) => sum + proveedor.total, 0);
+    return principales.map((proveedor, index) => {
+      const porcentaje = total > 0 ? (proveedor.total / total) * 100 : 0;
+      const inicio = principales
+        .slice(0, index)
+        .reduce(
+          (acumulado, anterior) =>
+            acumulado + (total > 0 ? (anterior.total / total) * 100 : 0),
+          0
+        );
+      return {
+        ...proveedor,
+        color: CHART_COLORS[index % CHART_COLORS.length],
+        porcentaje,
+        inicio,
+        fin: inicio + porcentaje,
+      };
+    });
+  }, [proveedoresDisponibles]);
+
   // Facturas agrupadas por proveedor seleccionado
   const facturasPorProveedor = useMemo(() => {
     const map = {};
@@ -136,7 +182,7 @@ export default function RenderGastosProveedor({
             <span>
               Cargo:{" "}
               <strong>
-                {data?.cargo_nombre || userCargo || "Auxiliar Logística"}
+                {data?.cargo_nombre || userCargo || "Sin cargo asignado"}
               </strong>
             </span>
           </div>
@@ -150,26 +196,6 @@ export default function RenderGastosProveedor({
 
         {/* ── BARRA DE CONTROLES Y FECHAS ── */}
         <div className="gastos-filters-grid">
-          {esAdmin && (
-            <div className="filter-group">
-              <label>
-                <i className="fa-solid fa-user-tag" /> Filtrar por Cargo
-              </label>
-              <select
-                className="filter-control"
-                value={cargoSeleccionado}
-                onChange={(e) => setCargoSeleccionado(e.target.value)}
-              >
-                <option value="">Todos los Cargos (General)</option>
-                {cargosDisponibles.map((c) => (
-                  <option key={c.id} value={c.id}>
-                    {c.nombre}
-                  </option>
-                ))}
-              </select>
-            </div>
-          )}
-
           <div className="filter-group">
             <label>
               <i className="fa-regular fa-calendar" /> Fecha Desde
@@ -396,75 +422,138 @@ export default function RenderGastosProveedor({
               <p>No hay facturas finalizadas aprobadas por este cargo.</p>
             </div>
           ) : (
-            <div className="ranking-list">
-              {top10Proveedores.map((p, index) => {
-                const maxGasto = top10Proveedores[0]?.total_gastado || 1;
-                const pctBar = Math.min(
-                  100,
-                  Math.round((p.total_gastado / maxGasto) * 100)
-                );
-                return (
-                  <div key={p.id} className="ranking-item">
-                    <div className="ranking-meta">
-                      <div className="ranking-prov-name">
-                        <span
-                          className={`ranking-badge-pos ${
-                            index === 0
-                              ? "top1"
-                              : index === 1
-                              ? "top2"
-                              : index === 2
-                              ? "top3"
-                              : ""
-                          }`}
-                        >
-                          {index + 1}
-                        </span>
-                        <span>{p.razon_social}</span>
-                        <small style={{ color: "#94a3b8" }}>({p.nit})</small>
-                      </div>
-                      <div
-                        style={{
-                          display: "flex",
-                          alignItems: "center",
-                          gap: "14px",
-                        }}
-                      >
-                        <span style={{ fontSize: "0.82rem", color: "#64748b" }}>
-                          {p.cantidad_facturas} fact. ({p.porcentaje_gasto}%)
-                        </span>
-                        <span className="ranking-amount">
-                          {formatCurrency(p.total_gastado)}
-                        </span>
-                        {!proveedoresSeleccionados.includes(p.id) && (
-                          <button
-                            type="button"
-                            className="doc-btn doc-btn-secondary"
-                            style={{
-                              padding: "4px 8px",
-                              fontSize: "0.75rem",
-                            }}
-                            onClick={() => {
-                              agregarProveedor(p.id);
-                              setActiveSubTab("por_proveedor");
-                            }}
-                            title="Analizar a fondo este proveedor"
-                          >
-                            <i className="fa-solid fa-arrow-right" /> Analizar
-                          </button>
-                        )}
-                      </div>
-                    </div>
-                    <div className="ranking-bar-bg">
-                      <div
-                        className="ranking-bar-fill"
-                        style={{ width: `${pctBar}%` }}
-                      />
+            <>
+              {gastoChart.length > 0 && (
+                <section
+                  className="gastos-chart-panel"
+                  aria-labelledby="gastos-chart-title"
+                >
+                  <div className="gastos-chart-heading">
+                    <span className="gastos-chart-icon">
+                      <i className="fa-solid fa-chart-pie" />
+                    </span>
+                    <div>
+                      <h4 id="gastos-chart-title">
+                        Participación por proveedor
+                      </h4>
+                      <p>
+                        Distribución del gasto aprobado para{" "}
+                        {data?.cargo_nombre || userCargo || "tu cargo"}.
+                      </p>
                     </div>
                   </div>
-                );
-              })}
-            </div>
+                  <div className="gastos-chart-content">
+                    <div
+                      className="gastos-donut"
+                      role="img"
+                      aria-label={`Distribución porcentual del gasto por proveedor. Total ${formatCurrency(
+                        data?.total_general || 0
+                      )}.`}
+                      style={{
+                        background: `conic-gradient(${gastoChart
+                          .map(
+                            (segmento) =>
+                              `${segmento.color} ${segmento.inicio}% ${segmento.fin}%`
+                          )
+                          .join(", ")})`,
+                      }}
+                    >
+                      <div className="gastos-donut-center">
+                        <span>Total del cargo</span>
+                        <strong>{formatCurrency(data?.total_general || 0)}</strong>
+                      </div>
+                    </div>
+                    <ul className="gastos-chart-legend">
+                      {gastoChart.map((segmento) => (
+                        <li key={segmento.id}>
+                          <span
+                            className="gastos-legend-color"
+                            style={{ backgroundColor: segmento.color }}
+                          />
+                          <span
+                            className="gastos-legend-name"
+                            title={segmento.nombre}
+                          >
+                            {segmento.nombre}
+                          </span>
+                          <strong>{segmento.porcentaje.toFixed(1)}%</strong>
+                          <span className="gastos-legend-total">{formatCurrency(segmento.total)}</span>
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                </section>
+              )}
+              <div className="ranking-list">
+                {top10Proveedores.map((p, index) => {
+                  const maxGasto = top10Proveedores[0]?.total_gastado || 1;
+                  const pctBar = Math.min(
+                    100,
+                    Math.round((p.total_gastado / maxGasto) * 100)
+                  );
+                  return (
+                    <div key={p.id} className="ranking-item">
+                      <div className="ranking-meta">
+                        <div className="ranking-prov-name">
+                          <span
+                            className={`ranking-badge-pos ${
+                              index === 0
+                                ? "top1"
+                                : index === 1
+                                  ? "top2"
+                                  : index === 2
+                                    ? "top3"
+                                    : ""
+                            }`}
+                          >
+                            {index + 1}
+                          </span>
+                          <span>{p.razon_social}</span>
+                          <small style={{ color: "#94a3b8" }}>({p.nit})</small>
+                        </div>
+                        <div
+                          style={{
+                            display: "flex",
+                            alignItems: "center",
+                            gap: "14px",
+                          }}
+                        >
+                          <span style={{ fontSize: "0.82rem", color: "#64748b" }}>
+                            {p.cantidad_facturas} fact. ({p.porcentaje_gasto}%)
+                          </span>
+                          <span className="ranking-amount">
+                            {formatCurrency(p.total_gastado)}
+                          </span>
+                          {!proveedoresSeleccionados.includes(p.id) && (
+                            <button
+                              type="button"
+                              className="doc-btn doc-btn-secondary"
+                              style={{
+                                padding: "4px 8px",
+                                fontSize: "0.75rem",
+                              }}
+                              onClick={() => {
+                                agregarProveedor(p.id);
+                                setActiveSubTab("por_proveedor");
+                              }}
+                              title="Analizar a fondo este proveedor"
+                            >
+                              <i className="fa-solid fa-arrow-right" /> Analizar
+                            </button>
+                          )}
+                        </div>
+                      </div>
+                      <div className="ranking-bar-bg">
+                        <div
+                          className="ranking-bar-fill"
+                          style={{ width: `${pctBar}%` }}
+                        />
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </>
           )}
 
           {/* Tabla Comparativa Completa */}
@@ -477,8 +566,7 @@ export default function RenderGastosProveedor({
               <input
                 type="text"
                 placeholder="Buscar proveedor o NIT..."
-                className="filter-control"
-                style={{ width: "260px" }}
+                className="filter-control gastos-search"
                 value={busquedaProveedor}
                 onChange={(e) => setBusquedaProveedor(e.target.value)}
               />
@@ -514,7 +602,7 @@ export default function RenderGastosProveedor({
                       <td className="monto-col">
                         {formatCurrency(p.total_iva)}
                       </td>
-                      <td className="monto-col" style={{ color: "#0284c7" }}>
+                      <td className="monto-col" style={{ color: "#2c5282" }}>
                         {formatCurrency(p.total_gastado)}
                       </td>
                       <td className="text-right">
@@ -614,7 +702,7 @@ export default function RenderGastosProveedor({
                     <div className="prov-card-totals">
                       <div className="prov-total-item">
                         <span className="lbl">Total Gastado</span>
-                        <span className="val" style={{ color: "#0284c7" }}>
+                        <span className="val" style={{ color: "#2c5282" }}>
                           {formatCurrency(p.total_gastado)}
                         </span>
                       </div>
@@ -695,7 +783,7 @@ export default function RenderGastosProveedor({
                                 </td>
                                 <td
                                   className="monto-col"
-                                  style={{ color: "#0284c7" }}
+                                  style={{ color: "#2c5282" }}
                                 >
                                   {formatCurrency(f.total)}
                                 </td>
@@ -789,8 +877,7 @@ export default function RenderGastosProveedor({
                 <input
                   type="text"
                   placeholder="Buscar ítem o descripción..."
-                  className="filter-control"
-                  style={{ width: "260px" }}
+                  className="filter-control gastos-search"
                   value={busquedaItem}
                   onChange={(e) => setBusquedaItem(e.target.value)}
                 />
@@ -829,7 +916,7 @@ export default function RenderGastosProveedor({
                           </td>
                           <td
                             className="monto-col"
-                            style={{ color: "#0284c7" }}
+                            style={{ color: "#2c5282" }}
                           >
                             {formatCurrency(it.total_gastado)}
                           </td>
@@ -885,8 +972,8 @@ export default function RenderGastosProveedor({
                           <td>
                             <span
                               style={{
-                                background: "#e0f2fe",
-                                color: "#0369a1",
+                                background: "#e8eef5",
+                                color: "#1e3a5f",
                                 padding: "2px 8px",
                                 borderRadius: "4px",
                                 fontWeight: "600",
@@ -903,7 +990,7 @@ export default function RenderGastosProveedor({
                           <td className="text-right">{n.cantidad_facturas}</td>
                           <td
                             className="monto-col"
-                            style={{ color: "#0284c7" }}
+                            style={{ color: "#2c5282" }}
                           >
                             {formatCurrency(n.total_gastado)}
                           </td>

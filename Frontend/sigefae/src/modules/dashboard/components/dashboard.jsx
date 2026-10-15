@@ -107,7 +107,7 @@ export default function ProcesosLogistica() {
   const finanzasHook = useFinanzas(obtenerToken, radicadosHook);
 
   // Gastos por Proveedor
-  const gastosHook = useGastosProveedor(obtenerToken, activeTab, userCargoId, esAdmin);
+  const gastosHook = useGastosProveedor(obtenerToken, activeTab);
 
   // Notificaciones (única instancia — se pasan como props al dropdown)
   const notifHook = useNotificaciones();
@@ -177,7 +177,6 @@ export default function ProcesosLogistica() {
       case "gastos-proveedor": return <RenderGastosProveedor 
         gastosHook={gastosHook} 
         openSaia={(rad, fromTab) => saiaHook.openSaia(rad, fromTab, tareasHook.setSelectedTareaId, radicadosHook.setSelectedRadicadoId, flujoHook.recargarFlujo, flujoHook.recargarTrazabilidad, flujoHook.recargarNormas, flujoHook.recargarComentarios)}
-        esAdmin={esAdmin}
         userCargo={userCargo}
       />;
       default: return <RenderWelcome />;

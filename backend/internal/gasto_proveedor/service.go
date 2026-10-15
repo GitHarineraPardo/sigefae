@@ -19,31 +19,18 @@ func New(database *gorm.DB) *Service {
 	return &Service{db: database}
 }
 
-func (s *Service) GetGastos(user db.Usuario, filtroCargoID *uint, fechaInicio, fechaFin string) (*GastosResponse, error) {
-	// Determinar el cargo a filtrar
-	var cargoID *uint
-	var cargoNombre string = "General"
-
-	esSuperadmin := false
-	if user.Rol != nil && user.Rol.Nombre == "Superadministrador" {
-		esSuperadmin = true
-	} else if user.RolID == 1 {
-		esSuperadmin = true
+func (s *Service) GetGastos(user db.Usuario, fechaInicio, fechaFin string) (*GastosResponse, error) {
+	cargoID := user.CargoID
+	if cargoID != nil && *cargoID == 0 {
+		cargoID = nil
 	}
-
-	if filtroCargoID != nil && *filtroCargoID > 0 {
-		cargoID = filtroCargoID
-	} else if !esSuperadmin {
-		cargoID = user.CargoID
-	}
+	cargoNombre := "Sin cargo asignado"
 
 	if cargoID != nil && *cargoID > 0 {
 		var c db.Cargo
 		if err := s.db.First(&c, *cargoID).Error; err == nil {
 			cargoNombre = c.Nombre
 		}
-	} else if esSuperadmin {
-		cargoNombre = "Todos los Cargos (Administración)"
 	}
 
 	// Consulta de radicados completados
@@ -63,11 +50,8 @@ func (s *Service) GetGastos(user db.Usuario, filtroCargoID *uint, fechaInicio, f
 			EXISTS (SELECT 1 FROM tarea t WHERE t.documento_radicado_id = documento_radicado.id AND t.cargo_asignado_id = ? AND t.estado_id = 3)
 			OR EXISTS (SELECT 1 FROM trazabilidad tz JOIN usuario u ON u.id = tz.usuario_id WHERE tz.documento_radicado_id = documento_radicado.id AND u.cargo_id = ?)
 		)`, *cargoID, *cargoID)
-	} else if !esSuperadmin {
-		query = query.Where(`(
-			EXISTS (SELECT 1 FROM tarea t WHERE t.documento_radicado_id = documento_radicado.id AND t.usuario_asignado_id = ? AND t.estado_id = 3)
-			OR EXISTS (SELECT 1 FROM trazabilidad tz WHERE tz.documento_radicado_id = documento_radicado.id AND tz.usuario_id = ?)
-		)`, user.ID, user.ID)
+	} else {
+		query = query.Where("1 = 0")
 	}
 
 	// Filtros por fecha

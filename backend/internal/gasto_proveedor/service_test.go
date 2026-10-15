@@ -120,7 +120,7 @@ func TestGetGastosPorCargo(t *testing.T) {
 	database.Create(&tarea2)
 
 	// Test: Usuario de logística consulta sus gastos
-	resp, err := svc.GetGastos(userLogistica, nil, "", "")
+	resp, err := svc.GetGastos(userLogistica, "", "")
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -160,11 +160,17 @@ func TestGetGastosAdminYFechas(t *testing.T) {
 	adminRole := db.Rol{Nombre: "Superadministrador", Activo: true}
 	database.Create(&adminRole)
 
-	userAdmin := db.Usuario{Nombre: "Admin User", RolID: adminRole.ID, Rol: &adminRole, Activo: true}
+	userAdmin := db.Usuario{Nombre: "Admin User", RolID: adminRole.ID, Rol: &adminRole, CargoID: &cargo1.ID, Activo: true}
 	database.Create(&userAdmin)
+
+	cargo2 := db.Cargo{Nombre: "Compras", Activo: true}
+	database.Create(&cargo2)
 
 	prov := db.Proveedor{RazonSocial: "Ferretería Central", NumeroDocumento: "800555666-3"}
 	database.Create(&prov)
+
+	prov2 := db.Proveedor{RazonSocial: "Proveedor de Compras", NumeroDocumento: "800555667-4"}
+	database.Create(&prov2)
 
 	doc := db.DocumentoComercial{
 		NumeroDocumento: "FAC-999",
@@ -183,6 +189,23 @@ func TestGetGastosAdminYFechas(t *testing.T) {
 	}
 	database.Create(&rad)
 
+	doc2 := db.DocumentoComercial{
+		NumeroDocumento: "FAC-1000",
+		IDProveedor:     prov2.ID,
+		Total:           900000,
+		FechaDocumento:  time.Now(),
+		Activo:          true,
+	}
+	database.Create(&doc2)
+
+	rad2 := db.DocumentoRadicado{
+		NumeroRadicado:       "RAD-1000",
+		DocumentoComercialID: doc2.ID,
+		EstadoPosesion:       "Completado",
+		FechaRadicacion:      time.Date(2026, 5, 11, 10, 0, 0, 0, time.UTC),
+	}
+	database.Create(&rad2)
+
 	tarea := db.Tarea{
 		DocumentoRadicadoID: rad.ID,
 		CargoAsignadoID:     &cargo1.ID,
@@ -190,8 +213,15 @@ func TestGetGastosAdminYFechas(t *testing.T) {
 	}
 	database.Create(&tarea)
 
-	// Admin sin filtro de cargo ve todo
-	respAdmin, err := svc.GetGastos(userAdmin, nil, "", "")
+	tarea2 := db.Tarea{
+		DocumentoRadicadoID: rad2.ID,
+		CargoAsignadoID:     &cargo2.ID,
+		EstadoID:            3,
+	}
+	database.Create(&tarea2)
+
+	// El cargo del usuario determina el alcance, incluso para un superadministrador.
+	respAdmin, err := svc.GetGastos(userAdmin, "", "")
 	if err != nil {
 		t.Fatalf("error: %v", err)
 	}
@@ -200,7 +230,7 @@ func TestGetGastosAdminYFechas(t *testing.T) {
 	}
 
 	// Filtro por fecha fuera de rango
-	respFueraRango, err := svc.GetGastos(userAdmin, nil, "2026-06-01", "2026-06-30")
+	respFueraRango, err := svc.GetGastos(userAdmin, "2026-06-01", "2026-06-30")
 	if err != nil {
 		t.Fatalf("error: %v", err)
 	}
@@ -209,7 +239,7 @@ func TestGetGastosAdminYFechas(t *testing.T) {
 	}
 
 	// Filtro por fecha dentro de rango
-	respEnRango, err := svc.GetGastos(userAdmin, nil, "2026-05-01", "2026-05-31")
+	respEnRango, err := svc.GetGastos(userAdmin, "2026-05-01", "2026-05-31")
 	if err != nil {
 		t.Fatalf("error: %v", err)
 	}
@@ -218,3 +248,50 @@ func TestGetGastosAdminYFechas(t *testing.T) {
 	}
 }
 
+func TestGetGastosSinCargoNoExponeOtrosCargos(t *testing.T) {
+	database := setupTestDB(t)
+	svc := New(database)
+
+	cargo := db.Cargo{Nombre: "Compras", Activo: true}
+	database.Create(&cargo)
+	adminRole := db.Rol{Nombre: "Superadministrador", Activo: true}
+	database.Create(&adminRole)
+	user := db.Usuario{Nombre: "Admin sin cargo", RolID: adminRole.ID, Rol: &adminRole, Activo: true}
+	database.Create(&user)
+
+	proveedor := db.Proveedor{RazonSocial: "Proveedor privado", NumeroDocumento: "900000001"}
+	database.Create(&proveedor)
+	documento := db.DocumentoComercial{
+		NumeroDocumento: "FAC-PRIVADA",
+		IDProveedor:     proveedor.ID,
+		Total:           100000,
+		FechaDocumento:  time.Now(),
+		Activo:          true,
+	}
+	database.Create(&documento)
+	radicado := db.DocumentoRadicado{
+		NumeroRadicado:       "RAD-PRIVADO",
+		DocumentoComercialID: documento.ID,
+		EstadoPosesion:       "Completado",
+		FechaRadicacion:      time.Now(),
+	}
+	database.Create(&radicado)
+	tarea := db.Tarea{
+		DocumentoRadicadoID: radicado.ID,
+		CargoAsignadoID:     &cargo.ID,
+		UsuarioAsignadoID:   &user.ID,
+		EstadoID:            3,
+	}
+	database.Create(&tarea)
+
+	resp, err := svc.GetGastos(user, "", "")
+	if err != nil {
+		t.Fatalf("error: %v", err)
+	}
+	if resp.CantidadFacturas != 0 {
+		t.Fatalf("esperaba 0 facturas sin cargo asignado, obtuvo %d", resp.CantidadFacturas)
+	}
+	if resp.CargoNombre != "Sin cargo asignado" {
+		t.Fatalf("cargo inesperado para usuario sin cargo: %q", resp.CargoNombre)
+	}
+}

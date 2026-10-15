@@ -2,7 +2,6 @@ package gasto_proveedor
 
 import (
 	"net/http"
-	"strconv"
 
 	"github.com/gin-gonic/gin"
 
@@ -25,18 +24,10 @@ func (h *Handler) GetGastos(c *gin.Context) {
 	}
 	user := userVal.(db.Usuario)
 
-	var filtroCargoID *uint
-	if cargoStr := c.Query("cargo_id"); cargoStr != "" {
-		if id, err := strconv.ParseUint(cargoStr, 10, 64); err == nil && id > 0 {
-			uID := uint(id)
-			filtroCargoID = &uID
-		}
-	}
-
 	fechaInicio := c.Query("fecha_inicio")
 	fechaFin := c.Query("fecha_fin")
 
-	resp, err := h.service.GetGastos(user, filtroCargoID, fechaInicio, fechaFin)
+	resp, err := h.service.GetGastos(user, fechaInicio, fechaFin)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return

@@ -13,14 +13,12 @@ const fetchNoStore = (url, options = {}) =>
     },
   });
 
-export function useGastosProveedor(obtenerToken, activeTab, userCargoId, esAdmin) {
+export function useGastosProveedor(obtenerToken, activeTab) {
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
 
   // Filtros
-  const [cargoSeleccionado, setCargoSeleccionado] = useState(userCargoId || "");
-  const [cargosDisponibles, setCargosDisponibles] = useState([]);
   const [fechaDesde, setFechaDesde] = useState("");
   const [fechaHasta, setFechaHasta] = useState("");
   const [proveedoresSeleccionados, setProveedoresSeleccionados] = useState([]);
@@ -33,25 +31,6 @@ export function useGastosProveedor(obtenerToken, activeTab, userCargoId, esAdmin
 
   const requestSequence = useRef(0);
 
-  // Cargar lista de cargos para administradores
-  useEffect(() => {
-    if (!esAdmin) return;
-    const cargarCargos = async () => {
-      try {
-        const res = await fetchNoStore(`${API}/cargos/activos`, {
-          headers: { Authorization: `Bearer ${obtenerToken()}` },
-        });
-        if (res.ok) {
-          const list = await res.json();
-          setCargosDisponibles(Array.isArray(list) ? list : []);
-        }
-      } catch (err) {
-        console.error("Error al cargar cargos para filtro:", err);
-      }
-    };
-    void cargarCargos();
-  }, [esAdmin, obtenerToken]);
-
   const fetchGastos = useCallback(async () => {
     const requestId = ++requestSequence.current;
     setLoading(true);
@@ -59,7 +38,6 @@ export function useGastosProveedor(obtenerToken, activeTab, userCargoId, esAdmin
 
     try {
       const params = new URLSearchParams();
-      if (cargoSeleccionado) params.append("cargo_id", cargoSeleccionado);
       if (fechaDesde) params.append("fecha_inicio", fechaDesde);
       if (fechaHasta) params.append("fecha_fin", fechaHasta);
       params.append("_t", String(Date.now()));
@@ -86,7 +64,7 @@ export function useGastosProveedor(obtenerToken, activeTab, userCargoId, esAdmin
         setLoading(false);
       }
     }
-  }, [cargoSeleccionado, fechaDesde, fechaHasta, obtenerToken]);
+  }, [fechaDesde, fechaHasta, obtenerToken]);
 
   useEffect(() => {
     if (activeTab === "gastos-proveedor") {
@@ -129,9 +107,6 @@ export function useGastosProveedor(obtenerToken, activeTab, userCargoId, esAdmin
     error,
     refetch: fetchGastos,
     // Filtros
-    cargoSeleccionado,
-    setCargoSeleccionado,
-    cargosDisponibles,
     fechaDesde,
     setFechaDesde,
     fechaHasta,

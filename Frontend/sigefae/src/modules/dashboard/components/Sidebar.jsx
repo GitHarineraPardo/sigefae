@@ -12,11 +12,6 @@ export default function Sidebar({ isSidebarOpen, setIsSidebarOpen, activeTab, se
           </a>
         )}
 
-        <a href="#" className={`menu-item ${activeTab === "gastos-proveedor" ? "active" : ""}`} onClick={(e) => { e.preventDefault(); setActiveTab("gastos-proveedor"); setIsSidebarOpen(false); }}>
-          <div className="item-icon"><i className="fa-solid fa-chart-pie"></i></div>
-          <div className="item-text"><span className="item-nombre">Gastos por Proveedor</span></div>
-        </a>
-
         {esAdmin && (
           <>
             <a href="#" className={`menu-item ${activeTab === "correos" ? "active" : ""}`} onClick={(e) => { e.preventDefault(); setActiveTab("correos"); setIsSidebarOpen(false); }}>
@@ -57,6 +52,11 @@ export default function Sidebar({ isSidebarOpen, setIsSidebarOpen, activeTab, se
             <div className="item-text"><span className="item-nombre">Catálogos</span></div>
           </a>
         )}
+
+        <a href="#" className={`menu-item ${activeTab === "gastos-proveedor" ? "active" : ""}`} onClick={(e) => { e.preventDefault(); setActiveTab("gastos-proveedor"); setIsSidebarOpen(false); }}>
+          <div className="item-icon"><i className="fa-solid fa-chart-pie"></i></div>
+          <div className="item-text"><span className="item-nombre">Gastos por Proveedor</span></div>
+        </a>
 
         {(userRole === "Contabilidad" || esAdmin) && (
           <a href="#" className={`menu-item ${activeTab === "trazabilidad-area" ? "active" : ""}`} onClick={(e) => { e.preventDefault(); setActiveTab("trazabilidad-area"); setIsSidebarOpen(false); }}>
