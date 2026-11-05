@@ -8,6 +8,8 @@ export function useDocumentos(obtenerToken, activeTab) {
   const [loadingDocs, setLoadingDocs] = useState(false);
   const [searchDocs, setSearchDocs] = useState("");
   const [sortDocs, setSortDocs] = useState("fecha_desc");
+  const [syncingInbound, setSyncingInbound] = useState(false);
+  const [syncResult, setSyncResult] = useState(null);
 
   // Crear documento manual
   const [showCrearDocModal, setShowCrearDocModal] = useState(false);
@@ -213,6 +215,38 @@ export function useDocumentos(obtenerToken, activeTab) {
     return result;
   };
 
+  const handleSyncInbound = async (dias = 30) => {
+    setSyncingInbound(true);
+    setSyncResult(null);
+    try {
+      const res = await fetch(`${API}/inbound/sync`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${obtenerToken()}`,
+        },
+        body: JSON.stringify({ dias }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        throw new Error(data.error || "Error al sincronizar con DIAN");
+      }
+      setSyncResult(data.stats);
+      // Recargar documentos pendientes
+      setLoadingDocs(true);
+      const listRes = await fetch(`${API}/documentocomercial/pendientes?_t=${Date.now()}`, {
+        headers: { Authorization: `Bearer ${obtenerToken()}` },
+      });
+      const listData = await listRes.json();
+      if (Array.isArray(listData)) setDocumentos(listData);
+    } catch (err) {
+      alert("Error en sincronización DIAN: " + err.message);
+    } finally {
+      setSyncingInbound(false);
+      setLoadingDocs(false);
+    }
+  };
+
   return {
     documentos, setDocumentos, selectedDocId, setSelectedDocId, docDetail, setDocDetail, loadingDocs,
     searchDocs, setSearchDocs, sortDocs, setSortDocs, getFilteredDocs,
@@ -221,6 +255,7 @@ export function useDocumentos(obtenerToken, activeTab) {
     proveedoresCatalogo, receptoresCatalogo, tiposDocumentoCatalogo, areasCatalogo, monedasCatalogo,
     openCrearDocModal, openCrearProveedorModal,
     handleDocFormChange, handleAddDetalle, handleDetalleChange, handleRemoveDetalle,
-    handleProveedorFormChange, handleCrearProveedorSubmit, handleCrearDocumentoSubmit
+    handleProveedorFormChange, handleCrearProveedorSubmit, handleCrearDocumentoSubmit,
+    syncingInbound, syncResult, handleSyncInbound
   };
 }

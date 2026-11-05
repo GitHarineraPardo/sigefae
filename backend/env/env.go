@@ -3,17 +3,12 @@ package env
 import (
 	"fmt"
 	"os"
+	"strings"
 
 	"github.com/joho/godotenv"
 )
 
 type Env struct {
-	// Graph
-	GraphClientSecret string
-	GraphClientID     string
-	GraphTenantID     string
-	GraphUserEmail    string
-
 	// Database
 	DBHost      string
 	DBPort      string
@@ -23,20 +18,45 @@ type Env struct {
 	DBCharset   string
 	DBParseTime string
 	DBLoc       string
+
+	// PT API (Proveedor Tecnológico Inbound & Eventos)
+	PtAPIBaseURL             string
+	PtAPIUser                string
+	PtAPIPassword            string
+	PtAPIXWhoListarDescargar string
+	PtAPIXWhoAuthEventos     string
 }
 
-func Load(path string) (*Env, error) {
-	if err := godotenv.Load(path); err != nil {
-		return nil, err
+func getEnv(keys ...string) string {
+	for _, key := range keys {
+		if val := os.Getenv(key); val != "" {
+			return val
+		}
+	}
+	return ""
+}
+
+func Load(paths ...string) (*Env, error) {
+	candidates := []string{".env", "../.env", "../../.env"}
+	if len(paths) > 0 && paths[0] != "" {
+		candidates = append([]string{paths[0]}, candidates...)
+	}
+
+	var errs []string
+	loaded := false
+	for _, p := range candidates {
+		if err := godotenv.Load(p); err == nil {
+			loaded = true
+			break
+		} else {
+			errs = append(errs, fmt.Sprintf("[%s: %v]", p, err))
+		}
+	}
+	if !loaded && os.Getenv("DB_SIGEFAE_HOST") == "" {
+		return nil, fmt.Errorf("fallaron los intentos de cargar .env: %s", strings.Join(errs, ", "))
 	}
 
 	cfg := &Env{
-		// Graph
-		GraphClientID:     os.Getenv("GRAPH_CLIENT_ID"),
-		GraphClientSecret: os.Getenv("GRAPH_CLIENT_SECRET"),
-		GraphTenantID:     os.Getenv("GRAPH_TENANT_ID"),
-		GraphUserEmail:    os.Getenv("GRAPH_USER_EMAIL"),
-
 		// DB
 		DBHost:      os.Getenv("DB_SIGEFAE_HOST"),
 		DBPort:      os.Getenv("DB_SIGEFAE_PORT"),
@@ -46,13 +66,13 @@ func Load(path string) (*Env, error) {
 		DBCharset:   os.Getenv("DB_SIGEFAE_CHARSET"),
 		DBParseTime: os.Getenv("DB_SIGEFAE_PARSE_TIME"),
 		DBLoc:       os.Getenv("DB_SIGEFAE_LOC"),
-	}
 
-	if cfg.GraphClientID == "" ||
-		cfg.GraphClientSecret == "" ||
-		cfg.GraphTenantID == "" ||
-		cfg.GraphUserEmail == "" {
-		return nil, fmt.Errorf("missing graph environment variables")
+		// PT API
+		PtAPIBaseURL:             getEnv("PT_API_BASE_URL"),
+		PtAPIUser:                getEnv("PT_API_USER"),
+		PtAPIPassword:            getEnv("PT_API_PASSWORD"),
+		PtAPIXWhoListarDescargar: getEnv("PT_API_X_WHO_LISTAR-DESCARGAR", "PT_API_X_WHO_LISTAR_DESCARGAR"),
+		PtAPIXWhoAuthEventos:     getEnv("PT_API_X_WHO_AUTENTICAR-EVENTOS", "PT_API_X_WHO_AUTENTICAR_EVENTOS"),
 	}
 
 	if cfg.DBHost == "" ||

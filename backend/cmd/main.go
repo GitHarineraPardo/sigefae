@@ -3,12 +3,13 @@ package main
 import (
 	"fmt"
 	"log"
+	"time"
 
 	"sigefae/env"
 	"sigefae/internal/api"
 	"sigefae/internal/db"
-	"sigefae/procesos_aplicacion/descarga_correos"
 	"sigefae/procesos_aplicacion/notificaciones_vencimiento"
+	"sigefae/procesos_aplicacion/proveedor_inbound"
 )
 
 func main() {
@@ -46,13 +47,24 @@ func main() {
 	// API & Tareas en Segundo Plano
 	// ========================================
 
-	// Iniciar la tarea de descarga de correos en segundo plano
-	go descarga_correos.Start(cfg, database)
+	// Iniciar la sincronización directa con el Proveedor Tecnológico DIAN
+	var ptService *proveedor_inbound.Service
+	if cfg.PtAPIBaseURL != "" && cfg.PtAPIUser != "" {
+		ptClient := proveedor_inbound.NewClient(
+			cfg.PtAPIBaseURL,
+			cfg.PtAPIUser,
+			cfg.PtAPIPassword,
+			cfg.PtAPIXWhoListarDescargar,
+			cfg.PtAPIXWhoAuthEventos,
+		)
+		ptService = proveedor_inbound.New(database, ptClient)
+		go proveedor_inbound.StartBackgroundTaskWithService(ptService, 10*time.Minute)
+	}
 
 	// Iniciar la tarea de notificaciones de vencimiento
 	go notificaciones_vencimiento.Start(database)
 
-	router := api.New(database)
+	router := api.New(database, ptService)
 
 	log.Println("Servidor iniciado en http://localhost:8080")
 

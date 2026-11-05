@@ -33,11 +33,6 @@ type MonedaResponse struct {
 	Nombre string `json:"nombre"`
 }
 
-type CorreoResponse struct {
-	ID        uint   `json:"id"`
-	Asunto    string `json:"asunto"`
-	IDMensaje string `json:"id_mensaje"`
-}
 
 type DetalleResponse struct {
 	ID          uint    `json:"id"`
@@ -86,8 +81,12 @@ type Response struct {
 
 	Cufe *string `json:"cufe,omitempty"`
 
-	CorreoID *uint           `json:"correo_id,omitempty"`
-	Correo   *CorreoResponse `json:"correo,omitempty"`
+	// Campos DIAN Inbound (PT API)
+	LDF                *string    `json:"ldf,omitempty"`
+	EventoDIAN         string     `json:"evento_dian,omitempty"`
+	FechaRecepcionDIAN *time.Time `json:"fecha_recepcion_dian,omitempty"`
+	RutaXML            string     `json:"ruta_xml,omitempty"`
+	RutaPDF            string     `json:"ruta_pdf,omitempty"`
 
 	Detalles []DetalleResponse `json:"detalles,omitempty"`
 
@@ -119,7 +118,11 @@ func toResponse(documento db.DocumentoComercial) Response {
 		NumeroFolios:             documento.NumeroFolios,
 		OrientacionSelloRecibido: documento.OrientacionSelloRecibido,
 		Cufe:                     documento.Cufe,
-		CorreoID:                 documento.CorreoID,
+		LDF:                      documento.LDF,
+		EventoDIAN:               documento.EventoDIAN,
+		FechaRecepcionDIAN:       documento.FechaRecepcionDIAN,
+		RutaXML:                  documento.RutaXML,
+		RutaPDF:                  documento.RutaPDF,
 		Activo:                   documento.Activo,
 		CreatedAt:                documento.CreatedAt,
 		UpdatedAt:                documento.UpdatedAt,
@@ -159,14 +162,6 @@ func toResponse(documento db.DocumentoComercial) Response {
 		response.Moneda = &MonedaResponse{
 			ID:     documento.Moneda.ID,
 			Nombre: documento.Moneda.Nombre,
-		}
-	}
-
-	if documento.Correo != nil {
-		response.Correo = &CorreoResponse{
-			ID:        documento.Correo.ID,
-			Asunto:    documento.Correo.Asunto,
-			IDMensaje: documento.Correo.IDMensaje,
 		}
 	}
 

@@ -13,10 +13,14 @@ func TestNewKeepsCargoReadOnly(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	router := New(database)
+	router := New(database, nil)
 	registered := make(map[string]bool)
 	for _, route := range router.Routes() {
 		registered[route.Method+" "+route.Path] = true
+	}
+
+	if !registered["POST /api/inbound/sync"] {
+		t.Errorf("inbound route POST /api/inbound/sync was not registered")
 	}
 
 	for _, route := range []string{

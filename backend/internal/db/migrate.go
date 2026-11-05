@@ -34,5 +34,13 @@ func Migrate() error {
 	if err := MigrateCargoIDs(DB); err != nil {
 		return err
 	}
-	return MigrateCargoForeignKeys(DB)
+	if err := MigrateCargoForeignKeys(DB); err != nil {
+		return err
+	}
+
+	// Actualizar nombre de área SST a SIG y rutas asociadas
+	_ = DB.Model(&Area{}).Where("nombre = ?", "SST").Update("nombre", "SIG").Error
+	_ = DB.Exec("UPDATE ruta SET nombre = REPLACE(nombre, 'SST', 'SIG') WHERE nombre LIKE '%SST%'").Error
+
+	return nil
 }

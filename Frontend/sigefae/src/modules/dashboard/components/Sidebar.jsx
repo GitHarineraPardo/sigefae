@@ -13,16 +13,10 @@ export default function Sidebar({ isSidebarOpen, setIsSidebarOpen, activeTab, se
         )}
 
         {esAdmin && (
-          <>
-            <a href="#" className={`menu-item ${activeTab === "correos" ? "active" : ""}`} onClick={(e) => { e.preventDefault(); setActiveTab("correos"); setIsSidebarOpen(false); }}>
-              <div className="item-icon"><i className="fa-solid fa-envelope"></i></div>
-              <div className="item-text"><span className="item-nombre">Correos</span></div>
-            </a>
-            <a href="#" className={`menu-item ${activeTab === "documentos" ? "active" : ""}`} onClick={(e) => { e.preventDefault(); setActiveTab("documentos"); setIsSidebarOpen(false); }}>
-              <div className="item-icon"><i className="fa-solid fa-file-invoice"></i></div>
-              <div className="item-text"><span className="item-nombre">Documentos</span></div>
-            </a>
-          </>
+          <a href="#" className={`menu-item ${activeTab === "documentos" ? "active" : ""}`} onClick={(e) => { e.preventDefault(); setActiveTab("documentos"); setIsSidebarOpen(false); }}>
+            <div className="item-icon"><i className="fa-solid fa-file-invoice"></i></div>
+            <div className="item-text"><span className="item-nombre">Facturas Inbound (DIAN)</span></div>
+          </a>
         )}
 
         {esAdmin && (
@@ -39,12 +33,13 @@ export default function Sidebar({ isSidebarOpen, setIsSidebarOpen, activeTab, se
           </a>
         )}
 
-        {(userRole === "Contabilidad" || userRole === "Tesorería" || userRole === "Superadministrador") && (
+        {/* Oculto temporalmente: Control Financiero */}
+        {/* {(userRole === "Contabilidad" || userRole === "Tesorería" || userRole === "Superadministrador") && (
           <a href="#" className={`menu-item ${activeTab === "finanzas" ? "active" : ""}`} onClick={(e) => { e.preventDefault(); setActiveTab("finanzas"); setIsSidebarOpen(false); }}>
             <div className="item-icon"><i className="fa-solid fa-file-invoice-dollar"></i></div>
             <div className="item-text"><span className="item-nombre">Control Financiero</span></div>
           </a>
-        )}
+        )} */}
 
         {esAdmin && (
           <a href="#" className={`menu-item ${activeTab === "catalogos" ? "active" : ""}`} onClick={(e) => { e.preventDefault(); setActiveTab("catalogos"); setIsSidebarOpen(false); }}>
@@ -53,17 +48,19 @@ export default function Sidebar({ isSidebarOpen, setIsSidebarOpen, activeTab, se
           </a>
         )}
 
-        <a href="#" className={`menu-item ${activeTab === "gastos-proveedor" ? "active" : ""}`} onClick={(e) => { e.preventDefault(); setActiveTab("gastos-proveedor"); setIsSidebarOpen(false); }}>
+        {/* Oculto temporalmente: Gastos por Proveedor */}
+        {/* <a href="#" className={`menu-item ${activeTab === "gastos-proveedor" ? "active" : ""}`} onClick={(e) => { e.preventDefault(); setActiveTab("gastos-proveedor"); setIsSidebarOpen(false); }}>
           <div className="item-icon"><i className="fa-solid fa-chart-pie"></i></div>
           <div className="item-text"><span className="item-nombre">Gastos por Proveedor</span></div>
-        </a>
+        </a> */}
 
-        {(userRole === "Contabilidad" || esAdmin) && (
+        {/* Oculto temporalmente: Trazabilidad por Área */}
+        {/* {(userRole === "Contabilidad" || esAdmin) && (
           <a href="#" className={`menu-item ${activeTab === "trazabilidad-area" ? "active" : ""}`} onClick={(e) => { e.preventDefault(); setActiveTab("trazabilidad-area"); setIsSidebarOpen(false); }}>
             <div className="item-icon"><i className="fa-solid fa-route"></i></div>
             <div className="item-text"><span className="item-nombre">Trazabilidad por Área</span></div>
           </a>
-        )}
+        )} */}
       </nav>
     </aside>
   );

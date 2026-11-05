@@ -26,3 +26,8 @@ type DevolverDTO struct {
 	Observacion    string `json:"observacion" binding:"required"`
 	RetornoDirecto bool   `json:"retorno_directo"`
 }
+
+type CompletarDTO struct {
+	TareasSeleccionadasIDs *[]uint `json:"tareas_seleccionadas_ids"`
+}
+

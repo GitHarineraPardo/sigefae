@@ -13,7 +13,6 @@ import RenderTrazabilidadPorArea from "./RenderTrazabilidadPorArea.jsx";
 
 // Hooks
 import { useAuth } from "../hooks/useAuth.js";
-import { useCorreos } from "../hooks/useCorreos.js";
 import { useDocumentos } from "../hooks/useDocumentos.js";
 import { useRadicados } from "../hooks/useRadicados.js";
 import { useTareas } from "../hooks/useTareas.js";
@@ -35,7 +34,6 @@ import { useNotificaciones } from "../../../hooks/useNotificaciones.js";
 // Components
 import Sidebar from "./Sidebar.jsx";
 import RenderWelcome from "./RenderWelcome.jsx";
-import RenderCorreos from "./RenderCorreos.jsx";
 import RenderDocumentos from "./RenderDocumentos.jsx";
 import RenderRadicados from "./RenderRadicados.jsx";
 import RenderTareas from "./RenderTarea.jsx";
@@ -55,7 +53,7 @@ export default function ProcesosLogistica() {
   const [isSidebarOpen, setIsSidebarOpen] = useState(true);
   const { userRol, userId, userName, userCargo, userCargoId, esAdmin, esUsuario, showDebug, puedeGestionarRecurso, obtenerToken } = useAuth();
   
-  const initialTab = esAdmin ? "welcome" : (userRol === "Contabilidad" || userRol === "Tesorería") ? "finanzas" : "tareas";
+  const initialTab = esAdmin ? "welcome" : "tareas";
   const [activeTab, setActiveTab] = useState(initialTab);
 
   const [fontSize, setFontSize] = useState(() => localStorage.getItem("sigefae_font_size") || "16px");
@@ -69,7 +67,6 @@ export default function ProcesosLogistica() {
   const [pdfEditor, setPdfEditor] = useState({ open: false, archivoId: null, archivoNombre: null, radicadoId: null });
 
   // Hooks de datos
-  const correosHook = useCorreos(obtenerToken, activeTab);
   const documentosHook = useDocumentos(obtenerToken, activeTab);
   const radicadosHook = useRadicados(obtenerToken, activeTab);
   const tareasHook = useTareas(obtenerToken, activeTab, userId, userCargoId);
@@ -141,8 +138,7 @@ export default function ProcesosLogistica() {
 
   const getTabInfo = () => {
     switch (activeTab) {
-      case "correos": return { icon: "fa-solid fa-envelope", title: "Recepción de Correos", subtitle: "Gestiona las facturas electrónicas recibidas" };
-      case "documentos": return { icon: "fa-solid fa-file-invoice", title: "Documentos Pendientes", subtitle: "Revisa y aprueba documentos para radicación" };
+      case "documentos": return { icon: "fa-solid fa-file-invoice", title: "Facturas Inbound (DIAN)", subtitle: "Facturas electrónicas recibidas del Proveedor Tecnológico DIAN" };
       case "radicados": return { icon: "fa-solid fa-stamp", title: "Documentos Radicados", subtitle: "Consulta el estado de los documentos radicados" };
       case "catalogos": return { icon: "fa-solid fa-sliders", title: "Catálogos del Sistema", subtitle: "Gestiona tipos de radicación, pagos y métodos" };
       case "tareas": return { icon: "fa-solid fa-clipboard-list", title: "Mis Tareas", subtitle: "Documentos radicados asignados a ti" };
@@ -158,7 +154,6 @@ export default function ProcesosLogistica() {
 
   const renderContent = () => {
     switch (activeTab) {
-      case "correos": return <RenderCorreos {...correosHook} />;
       case "documentos": return <RenderDocumentos {...documentosHook} esAdmin={esAdmin} openRadicarModal={radicacionHook.openRadicarModal} />;
       case "radicados": return <RenderRadicados {...radicadosHook} openSaia={(rad, fromTab) => saiaHook.openSaia(rad, fromTab, tareasHook.setSelectedTareaId, radicadosHook.setSelectedRadicadoId, flujoHook.recargarFlujo, flujoHook.recargarTrazabilidad, flujoHook.recargarNormas, flujoHook.recargarComentarios)} />;
       case "tareas": return <RenderTareas {...tareasHook} openSaia={(rad, fromTab) => saiaHook.openSaia(rad, fromTab, tareasHook.setSelectedTareaId, radicadosHook.setSelectedRadicadoId, flujoHook.recargarFlujo, flujoHook.recargarTrazabilidad, flujoHook.recargarNormas, flujoHook.recargarComentarios)} />;
@@ -289,6 +284,7 @@ export default function ProcesosLogistica() {
         esUsuario={esUsuario}
         userId={userId}
         userRol={userRol}
+        userCargo={userCargo}
         userCargoId={userCargoId}
         setPdfEditor={setPdfEditor}
         activeTab={activeTab}

@@ -2,52 +2,27 @@ package crear_documentos_comerciales
 
 import (
 	"errors"
-	"log"
-	"path/filepath"
 	"time"
 
 	"gorm.io/gorm"
 	"sigefae/internal/db"
 )
 
-// ProcesarCarpetaCorreo escanea la carpeta de un correo buscando un .xml de DIAN y lo procesa.
-func ProcesarCarpetaCorreo(database *gorm.DB, correoID uint, folderPath string) error {
-	matches, err := filepath.Glob(filepath.Join(folderPath, "*.xml"))
-	if err != nil || len(matches) == 0 {
-		// No hay XML, puede ser otro tipo de adjunto. No es un error crítico.
-		return nil
-	}
-
-	for _, xmlFile := range matches {
-		invoice, err := ParseXMLFile(xmlFile)
-		if err != nil {
-			log.Printf("Error parseando XML %s: %v\n", xmlFile, err)
-			continue
-		}
-
-		err = ProcesarFacturaXML(database, invoice, correoID)
-		if err != nil {
-			log.Printf("Error registrando factura desde XML %s: %v\n", xmlFile, err)
-			continue
-		}
-
-		// Asegurar que el estado 2 (Procesado) exista
-		var estado db.EstadoCorreo
-		if err := database.Where("id = ?", 2).FirstOrCreate(&estado, db.EstadoCorreo{ID: 2, Nombre: "Procesado", Activo: true}).Error; err != nil {
-			log.Printf("Error creando estado Procesado para el correo %d: %v\n", correoID, err)
-		}
-
-		database.Model(&db.Correo{}).Where("id = ?", correoID).Update("id_estado", 2) // Asumiendo estado 2 = Procesado
-		break
-	}
-	return nil
+// InboundMetadata contiene los datos de trazabilidad provenientes de la API Inbound
+type InboundMetadata struct {
+	LDF                string
+	EventoDIAN         string
+	FechaRecepcionDIAN *time.Time
+	RutaXML            string
+	RutaPDF            string
 }
 
-// ProcesarFacturaXML lee la estructura XML y nutre la base de datos (Proveedor, Receptor, Documento)
-func ProcesarFacturaXML(database *gorm.DB, invoice *Invoice, correoID uint) error {
-	return database.Transaction(func(tx *gorm.DB) error {
+// ProcesarFacturaInbound registra o actualiza una factura electrónica proveniente directamente de la API DIAN
+func ProcesarFacturaInbound(database *gorm.DB, invoice *Invoice, meta InboundMetadata) (*db.DocumentoComercial, error) {
+	var resultado *db.DocumentoComercial
 
-		// 0. Garantizar la existencia de catálogos base requeridos para foráneas
+	err := database.Transaction(func(tx *gorm.DB) error {
+		// 0. Catálogos base requeridos
 		var tipoDoc db.TipoDocumento
 		if err := tx.Where("nombre = ?", "NIT").FirstOrCreate(&tipoDoc, db.TipoDocumento{Nombre: "NIT", Activo: true}).Error; err != nil {
 			return err
@@ -79,16 +54,24 @@ func ProcesarFacturaXML(database *gorm.DB, invoice *Invoice, correoID uint) erro
 		}
 
 		var area db.Area
-		if err := tx.Where("nombre = ?", "General").FirstOrCreate(&area, db.Area{Nombre: "General", Activo: true}).Error; err != nil {
-			return err
+		if err := tx.Unscoped().Where("nombre = ?", "General").First(&area).Error; err != nil {
+			if errors.Is(err, gorm.ErrRecordNotFound) {
+				area = db.Area{Nombre: "General", Activo: true}
+				if err := tx.Create(&area).Error; err != nil {
+					return err
+				}
+			} else {
+				return err
+			}
+		} else if area.DeletedAt.Valid {
+			_ = tx.Unscoped().Model(&area).Update("deleted_at", nil)
 		}
 
-		// 1. Gestionar Receptor (Quien recibe la factura - La Empresa)
+		// 1. Receptor
 		nitReceptor := invoice.AccountingCustomerParty.Party.PartyTaxScheme.CompanyID
 		var receptor db.Receptor
 		if err := tx.Where("numero_documento = ?", nitReceptor).First(&receptor).Error; err != nil {
 			if errors.Is(err, gorm.ErrRecordNotFound) {
-				// Crear receptor si no existe
 				receptor = db.Receptor{
 					Nombre:          invoice.AccountingCustomerParty.Party.PartyTaxScheme.RegistrationName,
 					NumeroDocumento: nitReceptor,
@@ -103,16 +86,14 @@ func ProcesarFacturaXML(database *gorm.DB, invoice *Invoice, correoID uint) erro
 			}
 		}
 
-		// 2. Gestionar Geografía (País, Depto, Municipio)
+		// 2. Geografía y Proveedor
 		supplierParty := invoice.AccountingSupplierParty.Party
 		addr := supplierParty.PhysicalLocation.Address
-
-		// 3. Gestionar Proveedor
 		nitProveedor := supplierParty.PartyTaxScheme.CompanyID
+
 		var proveedor db.Proveedor
 		if err := tx.Where("numero_documento = ?", nitProveedor).First(&proveedor).Error; err != nil {
 			if errors.Is(err, gorm.ErrRecordNotFound) {
-				// Buscar o Crear Geografía para el Proveedor
 				var depto db.Departamento
 				tx.Where("nombre = ?", addr.CountrySubentity).FirstOrCreate(&depto, db.Departamento{Nombre: addr.CountrySubentity, PaisID: pais.ID})
 
@@ -126,7 +107,6 @@ func ProcesarFacturaXML(database *gorm.DB, invoice *Invoice, correoID uint) erro
 					IDMunicipio: municipio.ID,
 				})
 
-				// Crear Proveedor
 				proveedor = db.Proveedor{
 					NumeroDocumento:      nitProveedor,
 					TipoDocumentoID:      tipoDoc.ID,
@@ -142,7 +122,6 @@ func ProcesarFacturaXML(database *gorm.DB, invoice *Invoice, correoID uint) erro
 					return err
 				}
 
-				// Crear Contacto si existe
 				if supplierParty.Contact.Name != "" || supplierParty.Contact.ElectronicMail != "" {
 					contacto := db.Contacto{
 						ProveedorID: proveedor.ID,
@@ -154,7 +133,6 @@ func ProcesarFacturaXML(database *gorm.DB, invoice *Invoice, correoID uint) erro
 					tx.Create(&contacto)
 				}
 
-				// Responsabilidad Fiscal
 				if supplierParty.PartyTaxScheme.TaxLevelCode != "" {
 					resp := db.ResponsabilidadFiscal{
 						IDProveedor: proveedor.ID,
@@ -168,15 +146,38 @@ func ProcesarFacturaXML(database *gorm.DB, invoice *Invoice, correoID uint) erro
 			}
 		}
 
-		// 4. Crear Documento Comercial
-
-		// Validar si la factura ya existe (CUFE)
+		// 3. Validar si ya existe el documento comercial
 		var docExistente db.DocumentoComercial
-		if err := tx.Where("cufe = ?", invoice.UUID).First(&docExistente).Error; err == nil {
-			// Si ya existe por CUFE, la saltamos.
+		busqueda := tx.Where("cufe = ?", invoice.UUID)
+		if meta.LDF != "" {
+			busqueda = tx.Where("cufe = ? OR ldf = ?", invoice.UUID, meta.LDF)
+		}
+		if err := busqueda.First(&docExistente).Error; err == nil {
+			// Si ya existe, actualizamos trazabilidad de la API (evento, LDF, rutas)
+			updates := map[string]any{}
+			if meta.LDF != "" && docExistente.LDF == nil {
+				updates["ldf"] = meta.LDF
+			}
+			if meta.EventoDIAN != "" && docExistente.EventoDIAN != meta.EventoDIAN {
+				updates["evento_dian"] = meta.EventoDIAN
+			}
+			if meta.RutaXML != "" && docExistente.RutaXML == "" {
+				updates["ruta_xml"] = meta.RutaXML
+			}
+			if meta.RutaPDF != "" && docExistente.RutaPDF == "" {
+				updates["ruta_pdf"] = meta.RutaPDF
+			}
+			if meta.FechaRecepcionDIAN != nil && docExistente.FechaRecepcionDIAN == nil {
+				updates["fecha_recepcion_dian"] = meta.FechaRecepcionDIAN
+			}
+			if len(updates) > 0 {
+				_ = tx.Model(&docExistente).Updates(updates).Error
+			}
+			resultado = &docExistente
 			return nil
 		}
 
+		// 4. Crear Documento Comercial Inbound
 		issueDate, _ := time.Parse("2006-01-02", invoice.IssueDate)
 		var dueDate *time.Time
 		if invoice.DueDate != "" {
@@ -203,8 +204,6 @@ func ProcesarFacturaXML(database *gorm.DB, invoice *Invoice, correoID uint) erro
 			}
 		}
 
-		// Subtotal: preferir LineExtensionAmount (suma de líneas).
-		// Si viene en 0, calcular desde los detalles como fallback.
 		subtotal := invoice.LegalMonetaryTotal.LineExtensionAmount
 		if subtotal == 0 && len(invoice.InvoiceLines) > 0 {
 			for _, line := range invoice.InvoiceLines {
@@ -212,31 +211,37 @@ func ProcesarFacturaXML(database *gorm.DB, invoice *Invoice, correoID uint) erro
 			}
 		}
 
-		// IVA: buscar explícitamente el tax scheme "01" (IVA) para no confundir
-		// con retenciones u otros impuestos que puedan aparecer en TaxTotal.
 		var iva float64
 		for _, tax := range invoice.TaxTotal {
-			// Nota: si en tu struct de parser agregas el TaxScheme ID, puedes filtrar
-			// tax.TaxScheme.ID == "01". Mientras tanto sumamos TaxAmount.
 			iva += tax.TaxAmount
 		}
 
+		cufe := invoice.UUID
+		var ldfPtr *string
+		if meta.LDF != "" {
+			ldfPtr = &meta.LDF
+		}
+
 		doc := db.DocumentoComercial{
-			Tipo:             "FACTURA_ELECTRONICA",
-			NumeroDocumento:  invoice.ID,
-			IDProveedor:      proveedor.ID,
-			IDReceptor:       receptor.ID,
-			IDArea:           area.ID,
-			FechaDocumento:   issueDate,
-			FechaVencimiento: dueDate,
-			FormaPago:        formaPago,
-			MonedaID:         moneda.ID,
-			Subtotal:         subtotal,
-			Iva:              iva,
-			Total:            invoice.LegalMonetaryTotal.PayableAmount,
-			Cufe:             &invoice.UUID,
-			CorreoID:         &correoID,
-			Activo:           true,
+			Tipo:               "FACTURA_ELECTRONICA",
+			NumeroDocumento:    invoice.ID,
+			IDProveedor:        proveedor.ID,
+			IDReceptor:         receptor.ID,
+			IDArea:             area.ID,
+			FechaDocumento:     issueDate,
+			FechaVencimiento:   dueDate,
+			FormaPago:          formaPago,
+			MonedaID:           moneda.ID,
+			Subtotal:           subtotal,
+			Iva:                iva,
+			Total:              invoice.LegalMonetaryTotal.PayableAmount,
+			Cufe:               &cufe,
+			LDF:                ldfPtr,
+			EventoDIAN:         meta.EventoDIAN,
+			FechaRecepcionDIAN: meta.FechaRecepcionDIAN,
+			RutaXML:            meta.RutaXML,
+			RutaPDF:            meta.RutaPDF,
+			Activo:             true,
 		}
 
 		if err := tx.Create(&doc).Error; err != nil {
@@ -245,8 +250,6 @@ func ProcesarFacturaXML(database *gorm.DB, invoice *Invoice, correoID uint) erro
 
 		// 5. Insertar Detalles de Factura
 		for _, line := range invoice.InvoiceLines {
-			// Calcular valor unitario neto desde LineExtensionAmount / Cantidad
-			// porque PriceAmount puede venir con IVA incluido en algunos proveedores
 			valorUnit := line.Price.PriceAmount
 			if line.InvoicedQuantity > 0 {
 				valorUnit = line.LineExtensionAmount / line.InvoicedQuantity
@@ -265,6 +268,9 @@ func ProcesarFacturaXML(database *gorm.DB, invoice *Invoice, correoID uint) erro
 			}
 		}
 
+		resultado = &doc
 		return nil
 	})
+
+	return resultado, err
 }

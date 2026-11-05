@@ -5,6 +5,7 @@ import (
 	"math" // ← AGREGAR
 	"net/http"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/gin-gonic/gin"
@@ -88,6 +89,70 @@ func (h *Handler) Completar(c *gin.Context) {
 	if tarea.EstadoID == estadoCompletado.ID {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "La tarea ya está completada"})
 		return
+	}
+
+	var req CompletarDTO
+	_ = c.ShouldBindJSON(&req)
+
+	if req.TareasSeleccionadasIDs != nil {
+		var cargoAuxOriente db.Cargo
+		_ = h.db.Where("nombre = ?", "Auxiliar Admon Oriente").First(&cargoAuxOriente)
+
+		esAuxOriente := (user.Cargo != nil && strings.EqualFold(strings.TrimSpace(user.Cargo.Nombre), "Auxiliar Admon Oriente")) ||
+			(user.CargoID != nil && cargoAuxOriente.ID != 0 && *user.CargoID == cargoAuxOriente.ID)
+
+		if !esAuxOriente {
+			c.JSON(http.StatusForbidden, gin.H{"error": "Solo el cargo Auxiliar Admon Oriente puede ajustar los pasos del flujo"})
+			return
+		}
+
+		var tareasPreviasCompletadas int64
+		h.db.Model(&db.Tarea{}).Where("documento_radicado_id = ? AND estado_id = ?", tarea.DocumentoRadicadoID, estadoCompletado.ID).Count(&tareasPreviasCompletadas)
+
+		var tareasPreviasID int64
+		h.db.Model(&db.Tarea{}).Where("documento_radicado_id = ? AND id < ?", tarea.DocumentoRadicadoID, tarea.ID).Count(&tareasPreviasID)
+
+		if tareasPreviasCompletadas > 0 || tareasPreviasID > 0 {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "El flujo de aprobación solo puede ajustarse en el primer turno del Auxiliar Admon Oriente"})
+			return
+		}
+
+		var tareasFuturas []db.Tarea
+		if err := h.db.Where("documento_radicado_id = ? AND id > ?", tarea.DocumentoRadicadoID, tarea.ID).
+			Order("id asc").Find(&tareasFuturas).Error; err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Error consultando tareas del flujo"})
+			return
+		}
+
+		if len(tareasFuturas) > 1 {
+			// El último paso siempre es el cierre (Revisión Auxiliar Admon Oriente) y se protege
+			tareasIntermedias := tareasFuturas[:len(tareasFuturas)-1]
+			setSeleccionadas := make(map[uint]bool)
+			for _, idSel := range *req.TareasSeleccionadasIDs {
+				setSeleccionadas[idSel] = true
+			}
+
+			var omitidasNombres []string
+			for _, tIntermedia := range tareasIntermedias {
+				if !setSeleccionadas[tIntermedia.ID] {
+					if err := h.db.Delete(&tIntermedia).Error; err != nil {
+						c.JSON(http.StatusInternalServerError, gin.H{"error": "Error excluyendo tarea del flujo"})
+						return
+					}
+					omitidasNombres = append(omitidasNombres, tIntermedia.Descripcion)
+				}
+			}
+
+			if len(omitidasNombres) > 0 {
+				h.db.Create(&db.Trazabilidad{
+					DocumentoRadicadoID: tarea.DocumentoRadicadoID,
+					UsuarioID:           user.ID,
+					Accion:              "Ajuste de Flujo",
+					Descripcion:         fmt.Sprintf("Auxiliar Admon Oriente definió el flujo oficial. Pasos omitidos: %s", strings.Join(omitidasNombres, ", ")),
+					Fecha:               now,
+				})
+			}
+		}
 	}
 
 	// ═══════════════════════════════════════════════════════════════

@@ -1,7 +1,13 @@
-export default function RenderFlujoAprobacion({ tareasFlujo }) {
+export default function RenderFlujoAprobacion({ tareasFlujo, esPrimerTurnoAuxOriente }) {
   return (
     <div className="doc-section">
       <h4><i className="fa-solid fa-route"></i> Flujo de Aprobación</h4>
+      {esPrimerTurnoAuxOriente && (
+        <div style={{ padding: '8px 12px', background: '#eff6ff', border: '1px solid #bfdbfe', borderRadius: '6px', marginBottom: '12px', fontSize: '0.85em', color: '#1e40af', display: 'flex', alignItems: 'center', gap: '8px' }}>
+          <i className="fa-solid fa-circle-info"></i>
+          <span><strong>Turno de Definición:</strong> Como Auxiliar Admon Oriente, al hacer clic en <em>"Definir Flujo y Continuar"</em> podrás marcar o desmarcar qué pasos formarán parte del flujo oficial.</span>
+        </div>
+      )}
       {tareasFlujo.length === 0 ? (
         <p style={{ color: "#6b7280", fontSize: "0.9em" }}>No hay pasos definidos para este flujo.</p>
       ) : (

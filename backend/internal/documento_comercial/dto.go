@@ -23,7 +23,6 @@ type CreateDTO struct {
 	NumeroFolios             int        `json:"numero_folios"`
 	OrientacionSelloRecibido string     `json:"orientacion_sello_recibido"`
 	Cufe                     *string    `json:"cufe"`
-	CorreoID                 *uint      `json:"correo_id"`
 	Activo                   bool       `json:"activo"`
 	// ← NUEVO
 	Detalles []db.DetalleDocumentoComercial `json:"detalles"`

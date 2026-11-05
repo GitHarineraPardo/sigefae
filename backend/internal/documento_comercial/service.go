@@ -104,25 +104,6 @@ func (s *Service) Create(dto CreateDTO) (*Response, error) {
 	}
 
 	// ==========================
-	// Validar correo (opcional)
-	// ==========================
-
-	if dto.CorreoID != nil {
-
-		var correo db.Correo
-
-		err = s.db.First(&correo, *dto.CorreoID).Error
-
-		if errors.Is(err, gorm.ErrRecordNotFound) {
-			return nil, errors.New("el correo no existe")
-		}
-
-		if err != nil {
-			return nil, err
-		}
-	}
-
-	// ==========================
 	// Validar proveedor + documento (duplicado)
 	// ==========================
 
@@ -162,25 +143,6 @@ func (s *Service) Create(dto CreateDTO) (*Response, error) {
 	}
 
 	// ==========================
-	// Validar correo único
-	// ==========================
-
-	if dto.CorreoID != nil {
-
-		var existingCorreo db.DocumentoComercial
-
-		err = s.db.
-			Where("correo_id = ?", *dto.CorreoID).
-			First(&existingCorreo).Error
-
-		if err == nil {
-			return nil, errors.New("el correo ya está asociado a otro documento")
-		} else if !errors.Is(err, gorm.ErrRecordNotFound) {
-			return nil, err
-		}
-	}
-
-	// ==========================
 	// Crear documento + detalles en transacción
 	// ==========================
 
@@ -204,7 +166,6 @@ func (s *Service) Create(dto CreateDTO) (*Response, error) {
 		NumeroFolios:             dto.NumeroFolios,
 		OrientacionSelloRecibido: dto.OrientacionSelloRecibido,
 		Cufe:                     dto.Cufe,
-		CorreoID:                 dto.CorreoID,
 		Activo:                   dto.Activo,
 	}
 
@@ -233,7 +194,6 @@ func (s *Service) Create(dto CreateDTO) (*Response, error) {
 		Preload("Area").
 		Preload("TipoFactura").
 		Preload("Moneda").
-		Preload("Correo").
 		Preload("Detalles").
 		First(&documento, documento.ID).Error; err != nil {
 
@@ -254,7 +214,6 @@ func (s *Service) List() ([]Response, error) {
 		Preload("Area").
 		Preload("TipoFactura").
 		Preload("Moneda").
-		Preload("Correo").
 		Order("created_at DESC").
 		Find(&documentos).Error; err != nil {
 
@@ -305,7 +264,6 @@ func (s *Service) Update(id uint, dto UpdateDocumentoComercialDTO) (*db.Document
 		Preload("Receptor").
 		Preload("Area").
 		Preload("Moneda").
-		Preload("Correo").
 		Preload("Detalles").
 		First(&doc, doc.ID).Error; err != nil {
 		return nil, err
@@ -341,7 +299,6 @@ func (s *Service) GetByID(id uint) (*Response, error) {
 		Preload("Area").
 		Preload("TipoFactura").
 		Preload("Moneda").
-		Preload("Correo").
 		Preload("Detalles").
 		First(&documento, id).Error; err != nil {
 
@@ -364,8 +321,7 @@ func (s *Service) ListPendientes() ([]Response, error) {
 	var documentos []db.DocumentoComercial
 
 	// Documentos que:
-	// 1. Tienen correo asociado (origen digital)
-	// 2. NO tienen un documento_radicado asociado
+	// NO tienen un documento_radicado asociado
 	subQuery := s.db.Table("documento_radicado").Select("documento_comercial_id")
 
 	if err := s.db.
@@ -374,8 +330,6 @@ func (s *Service) ListPendientes() ([]Response, error) {
 		Preload("Area").
 		Preload("TipoFactura").
 		Preload("Moneda").
-		Preload("Correo").
-		Preload("Correo.EstadoCorreo").
 		Preload("Detalles").
 		Where("id NOT IN (?)", subQuery).
 		Where("activo = ?", true).

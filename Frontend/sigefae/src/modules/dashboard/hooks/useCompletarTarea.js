@@ -4,11 +4,19 @@ import { API } from "../constants/api";
 export function useCompletarTarea(obtenerToken, userId, activeTab, setTareasFlujo, setTareaDetail, setRadicadoDetail, setRadicados, setSaiaRadicado, recargarTareas, sincronizarRadicado) {
   const [completandoTarea, setCompletandoTarea] = useState(false);
 
-  const handleCompletarTarea = async (tareaId, radicadoId) => {
+  const handleCompletarTarea = async (tareaId, radicadoId, tareasSeleccionadasIds = null) => {
     if (completandoTarea) return;
     setCompletandoTarea(true);
     try {
-      const res = await fetch(`${API}/tarea/${tareaId}/completar`, { method: "PATCH", headers: { Authorization: `Bearer ${obtenerToken()}` } });
+      const options = {
+        method: "PATCH",
+        headers: {
+          Authorization: `Bearer ${obtenerToken()}`,
+          ...(tareasSeleccionadasIds !== null ? { "Content-Type": "application/json" } : {})
+        },
+        ...(tareasSeleccionadasIds !== null ? { body: JSON.stringify({ tareas_seleccionadas_ids: tareasSeleccionadasIds }) } : {})
+      };
+      const res = await fetch(`${API}/tarea/${tareaId}/completar`, options);
       let errMsg = null;
       if (!res.ok) {
         try { const errData = await res.json(); errMsg = errData.error || ""; } catch { errMsg = "Error completando tarea"; }

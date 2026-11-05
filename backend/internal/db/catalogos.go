@@ -33,14 +33,6 @@ type TipoRadicacion struct {
 
 func (TipoRadicacion) TableName() string { return "tipo_radicacion" }
 
-type EstadoCorreo struct {
-	ID        uint           `gorm:"primaryKey;column:id" json:"id"`
-	Nombre    string         `gorm:"column:nombre;type:varchar(255)" json:"nombre"`
-	Activo    bool           `gorm:"column:activo;default:true" json:"activo"`
-	DeletedAt gorm.DeletedAt `gorm:"index" json:"-"`
-}
-
-func (EstadoCorreo) TableName() string { return "estado_correo" }
 
 type ArchivoOrigen struct {
 	ID        uint           `gorm:"primaryKey;column:id" json:"id"`

@@ -175,20 +175,9 @@ func (s *Service) Create(dto CreateDTO, usuarioID uint) (*db.DocumentoRadicado, 
 			return err
 		}
 
-		// ── 10. Adjuntar archivos automáticamente desde el correo origen ──
-		// Consultamos explícitamente correo_id para no depender del mapeo del struct
-		var correoID *uint
-		tx.Model(&db.DocumentoComercial{}).
-			Select("correo_id").
-			Where("id = ?", dto.DocumentoComercialID).
-			Scan(&correoID)
-
-		if correoID != nil && *correoID != 0 {
-			if err := adjuntarArchivosDesdeCorreo(tx, &radicado, *correoID, usuarioID); err != nil {
-				fmt.Printf("[RADICADO %s] warning: no se pudieron adjuntar archivos del correo: %v\n", radicado.NumeroRadicado, err)
-			}
-		} else {
-			fmt.Printf("[RADICADO %s] info: documento comercial %d no tiene correo_id\n", radicado.NumeroRadicado, dto.DocumentoComercialID)
+		// ── 10. Adjuntar archivos automáticamente desde el documento ──
+		if err := adjuntarArchivosDocumento(tx, &radicado, &docCom, usuarioID); err != nil {
+			fmt.Printf("[RADICADO %s] warning: no se pudieron adjuntar archivos: %v\n", radicado.NumeroRadicado, err)
 		}
 
 		// ── 11. Validar total porcentajes normas + activos ──
@@ -704,19 +693,10 @@ func generarTareasDesdeRuta(tx *gorm.DB, radicado *db.DocumentoRadicado, rutaID 
 }
 
 // ─────────────────────────────────────────────────────────────
-// adjuntarArchivosDesdeCorreo
+// adjuntarArchivosDocumento
 // ─────────────────────────────────────────────────────────────
-func adjuntarArchivosDesdeCorreo(tx *gorm.DB, radicado *db.DocumentoRadicado, correoID uint, usuarioID uint) error {
-	// 1. Cargar el correo para obtener id_mensaje
-	var correo db.Correo
-	if err := tx.First(&correo, correoID).Error; err != nil {
-		return fmt.Errorf("correo origen no encontrado (id=%d): %w", correoID, err)
-	}
-	if correo.IDMensaje == "" {
-		return errors.New("correo no tiene id_mensaje definido")
-	}
-
-	// 2. Buscar o crear origen "Sistema"
+func adjuntarArchivosDocumento(tx *gorm.DB, radicado *db.DocumentoRadicado, docCom *db.DocumentoComercial, usuarioID uint) error {
+	// 1. Buscar o crear origen "Sistema"
 	var origen db.ArchivoOrigen
 	if err := tx.Where("nombre = ?", "Sistema").First(&origen).Error; err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
@@ -730,62 +710,62 @@ func adjuntarArchivosDesdeCorreo(tx *gorm.DB, radicado *db.DocumentoRadicado, co
 	}
 	origenID := origen.ID
 
-	// 3. Directorio fuente
-	srcDir := filepath.Join("storage", "mails", correo.IDMensaje)
-	entries, err := os.ReadDir(srcDir)
-	if err != nil {
-		return fmt.Errorf("no se pudo leer directorio origen %s: %w", srcDir, err)
-	}
-
-	// 4. Directorio destino
 	dstDir := filepath.Join("storage", "radicados", fmt.Sprintf("%d", radicado.ID))
 	if err := os.MkdirAll(dstDir, 0755); err != nil {
 		return fmt.Errorf("no se pudo crear directorio destino %s: %w", dstDir, err)
 	}
 
-	// 5. Copiar cada archivo (solo PDF)
-	for _, entry := range entries {
-		if entry.IsDir() {
-			continue
-		}
-
-		name := entry.Name()
-		ext := strings.ToLower(filepath.Ext(name))
-
-		// ← Solo archivos PDF
-		if ext != ".pdf" {
-			continue
-		}
-
-		srcPath := filepath.Join(srcDir, name)
-		dstPath := filepath.Join(dstDir, name)
-
-		if err := copyFile(srcPath, dstPath); err != nil {
-			fmt.Printf("[RADICADO %d] ERROR copiando %s: %v\n", radicado.ID, name, err)
-			continue
-		}
-
-		info, _ := os.Stat(dstPath)
-		peso := int64(0)
-		if info != nil {
-			peso = info.Size()
-		}
-
-		archivo := db.Archivo{
-			DocumentoRadicadoID: radicado.ID,
-			Nombre:              name,
-			Extension:           strings.TrimPrefix(ext, "."),
-			Ruta:                dstPath,
-			Peso:                peso,
-			OrigenID:            origenID,
-			CreadoPorID:         usuarioID,
-		}
-		if err := tx.Create(&archivo).Error; err != nil {
-			fmt.Printf("[RADICADO %d] ERROR guardando registro BD de %s: %v\n", radicado.ID, name, err)
-			continue
+	// 2. Archivos provenientes de la API Inbound (storage/documentos)
+	var srcFiles []string
+	if docCom.RutaPDF != "" {
+		srcFiles = append(srcFiles, docCom.RutaPDF)
+	}
+	if docCom.Cufe != nil && *docCom.Cufe != "" {
+		docDir := filepath.Join("storage", "documentos", *docCom.Cufe)
+		if entries, err := os.ReadDir(docDir); err == nil {
+			for _, entry := range entries {
+				if !entry.IsDir() && strings.ToLower(filepath.Ext(entry.Name())) == ".pdf" {
+					path := filepath.Join(docDir, entry.Name())
+					if path != docCom.RutaPDF {
+						srcFiles = append(srcFiles, path)
+					}
+				}
+			}
 		}
 	}
 
+	// Copiar archivos del Documento Comercial oficial
+	if len(srcFiles) > 0 {
+		for _, srcPath := range srcFiles {
+			name := filepath.Base(srcPath)
+			ext := strings.ToLower(filepath.Ext(name))
+			dstPath := filepath.Join(dstDir, name)
+
+			if err := copyFile(srcPath, dstPath); err != nil {
+				fmt.Printf("[RADICADO %d] ERROR copiando %s: %v\n", radicado.ID, name, err)
+				continue
+			}
+
+			info, _ := os.Stat(dstPath)
+			peso := int64(0)
+			if info != nil {
+				peso = info.Size()
+			}
+
+			archivo := db.Archivo{
+				DocumentoRadicadoID: radicado.ID,
+				Nombre:              name,
+				Extension:           strings.TrimPrefix(ext, "."),
+				Ruta:                dstPath,
+				Peso:                peso,
+				OrigenID:            origenID,
+				CreadoPorID:         usuarioID,
+			}
+			if err := tx.Create(&archivo).Error; err != nil {
+				fmt.Printf("[RADICADO %d] ERROR guardando registro BD de %s: %v\n", radicado.ID, name, err)
+			}
+		}
+	}
 	return nil
 }
 

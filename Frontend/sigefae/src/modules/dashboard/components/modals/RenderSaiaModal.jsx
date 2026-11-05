@@ -14,11 +14,14 @@ export default function RenderSaiaModal({
   handleVerAnexo, handleDescargarAnexo, handleBorrarAnexo, handleSubirAnexo,
   completandoTarea, handleCompletarTarea,
   solicitarRechazo, marcarCompletado, adminRechazar,
-  esAdmin, esUsuario, userId, userRol, userCargoId,
+  esAdmin, esUsuario, userId, userRol, userCargo, userCargoId,
   setPdfEditor,  setSelectedTareaId, setSelectedRadicadoId,
   setShowDevolverModal, setDevolverForm,
   openNormaModal, handleEliminarNorma, activosFijosRadicado, openActivoModal, handleEliminarActivoFijo, readOnly: externalReadOnly
 }) {
+  const [showModalDefinirFlujo, setShowModalDefinirFlujo] = useState(false);
+  const [pasosSeleccionados, setPasosSeleccionados] = useState([]);
+
   // ── Resizable sidebar ──────────────────────────────────────
   const SIDEBAR_MIN = 320;
   const SIDEBAR_MAX_RATIO = 0.75; // 75% del viewport
@@ -84,9 +87,21 @@ export default function RenderSaiaModal({
     return propietario > 0 && propietario === Number(userId);
   };
 
+  const esAuxOriente = userCargo && userCargo.toLowerCase().includes("auxiliar admon oriente");
+  const tareaActiva = (Array.isArray(tareasFlujo) ? tareasFlujo : []).find(t => t.estado?.nombre === "En Proceso");
+  const tareasCompletadas = (Array.isArray(tareasFlujo) ? tareasFlujo : []).filter(t => t.estado?.nombre === "Completada");
+  const esPrimerTurnoAuxOriente = 
+    Boolean(esAuxOriente) &&
+    tareasFlujo.length > 0 &&
+    Boolean(tareaActiva) &&
+    tareasFlujo[0].id === tareaActiva.id &&
+    tareasCompletadas.length === 0;
+
+
 
   return (
-    <div className="saia-overlay" onClick={() => setSaiaModalOpen(false)}>
+    <>
+      <div className="saia-overlay" onClick={() => setSaiaModalOpen(false)}>
       <div className="saia-container" onClick={e => e.stopPropagation()}>
         <div className="saia-topbar">
           <h3><i className="fa-solid fa-stamp"></i> Radicado #{saiaRadicado.numero_radicado}</h3>
@@ -192,7 +207,7 @@ export default function RenderSaiaModal({
                   )}
                 </>
               )}
-              {saiaActiveTab === 'flujo' && <RenderFlujoAprobacion tareasFlujo={tareasFlujo} />}
+              {saiaActiveTab === 'flujo' && <RenderFlujoAprobacion tareasFlujo={tareasFlujo} esPrimerTurnoAuxOriente={esPrimerTurnoAuxOriente} />}
               {saiaActiveTab === 'trazabilidad' && <RenderTrazabilidad historialTrazabilidad={historialTrazabilidad} />}
               {saiaActiveTab === 'normas' && <RenderNormasReparto normasRepartoRadicado={normasRepartoRadicado} activosFijosRadicado={activosFijosRadicado} radicadoId={saiaRadicado.id} readOnly={readOnly} esAdmin={esAdmin} puedeGestionarRecurso={puedeGestionarRecurso} openNormaModal={openNormaModal} handleEliminarNorma={handleEliminarNorma} openActivoModal={openActivoModal} handleEliminarActivoFijo={handleEliminarActivoFijo} subtotalRadicado={saiaRadicado.documento_comercial?.subtotal || saiaRadicado.documento_comercial?.total || 0} />}
               {saiaActiveTab === 'comentarios' && <div className="saia-comments-wrapper"><RenderComentarios comentarios={comentarios} nuevoComentario={nuevoComentario} setNuevoComentario={setNuevoComentario} enviandoComentario={enviandoComentario} handleEnviarComentario={handleEnviarComentario} radicadoId={saiaRadicado.id} userId={userId} readOnly={readOnly} /></div>}
@@ -245,7 +260,24 @@ export default function RenderSaiaModal({
 
                     // ── Botones para el usuario responsable (Aprobador asignado) ──
                     if (esResponsable && !readOnly) {
-                      botones.push(<button key="completar" className="doc-btn doc-btn-primary" onClick={() => handleCompletarTarea(tareaActiva.id, saiaRadicado.id)} disabled={completandoTarea}><i className={`fa-solid ${completandoTarea ? 'fa-spinner fa-spin' : 'fa-check'}`}></i> {completandoTarea ? 'Completando...' : 'Marcar como Completado'}</button>);
+                      botones.push(
+                        <button
+                          key="completar"
+                          className="doc-btn doc-btn-primary"
+                          onClick={() => {
+                            if (esPrimerTurnoAuxOriente && tareasFlujo.length > 2) {
+                              setPasosSeleccionados(tareasFlujo.slice(1, -1).map(t => t.id));
+                              setShowModalDefinirFlujo(true);
+                            } else {
+                              handleCompletarTarea(tareaActiva.id, saiaRadicado.id);
+                            }
+                          }}
+                          disabled={completandoTarea}
+                        >
+                          <i className={`fa-solid ${completandoTarea ? 'fa-spinner fa-spin' : (esPrimerTurnoAuxOriente && tareasFlujo.length > 2 ? 'fa-list-check' : 'fa-check')}`}></i>{' '}
+                          {completandoTarea ? 'Completando...' : (esPrimerTurnoAuxOriente && tareasFlujo.length > 2 ? 'Definir Flujo y Continuar' : 'Marcar como Completado')}
+                        </button>
+                      );
                       botones.push(<button key="devolver" className="doc-btn doc-btn-secondary" onClick={() => { setDevolverForm({ tarea_destino_id: "", observacion: "", retorno_directo: true }); setShowDevolverModal(true); }} style={{ borderColor: 'var(--pardo-red)', color: 'var(--pardo-red)' }}><i className="fa-solid fa-reply"></i> Devolver</button>);
                     }
 
@@ -285,5 +317,160 @@ export default function RenderSaiaModal({
         </div>
       </div>
     </div>
+
+    {showModalDefinirFlujo && (
+      <div
+        className="modal-overlay"
+        style={{
+          position: 'fixed',
+          top: 0,
+          left: 0,
+          right: 0,
+          bottom: 0,
+          backgroundColor: 'rgba(0, 0, 0, 0.65)',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          zIndex: 99999
+        }}
+        onClick={() => setShowModalDefinirFlujo(false)}
+      >
+        <div
+          className="modal-content"
+          style={{
+            maxWidth: '560px',
+            width: '92%',
+            backgroundColor: '#ffffff',
+            borderRadius: '14px',
+            padding: '24px',
+            boxShadow: '0 20px 25px -5px rgba(0, 0, 0, 0.2), 0 10px 10px -5px rgba(0, 0, 0, 0.1)',
+            maxHeight: '90vh',
+            display: 'flex',
+            flexDirection: 'column'
+          }}
+          onClick={(e) => e.stopPropagation()}
+        >
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
+            <h3 style={{ margin: 0, fontSize: '1.2rem', display: 'flex', alignItems: 'center', gap: '8px', color: '#111827' }}>
+              <i className="fa-solid fa-route" style={{ color: 'var(--pardo-red, #dc2626)' }}></i> Definir Flujo Oficial
+            </h3>
+            <button
+              onClick={() => setShowModalDefinirFlujo(false)}
+              style={{ background: 'transparent', border: 'none', cursor: 'pointer', fontSize: '1.2rem', color: '#9ca3af', padding: '4px' }}
+              title="Cerrar"
+            >
+              <i className="fa-solid fa-xmark"></i>
+            </button>
+          </div>
+
+          <div style={{ padding: '12px 14px', background: '#eff6ff', border: '1px solid #bfdbfe', borderRadius: '8px', marginBottom: '16px', fontSize: '0.88em', color: '#1e40af', lineHeight: 1.4 }}>
+            <i className="fa-solid fa-circle-info" style={{ marginRight: '6px' }}></i>
+            Como <strong>Auxiliar Administrativo Oriente</strong>, seleccione las revisiones por las que debe pasar oficialmente este radicado. Los pasos desmarcados serán omitidos.
+          </div>
+
+          <div style={{ flex: 1, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '8px', marginBottom: '20px', paddingRight: '4px' }}>
+            {/* Paso 1: Actual (Obligatorio) */}
+            <div style={{ display: 'flex', alignItems: 'center', gap: '12px', padding: '10px 14px', borderRadius: '8px', background: '#f3f4f6', border: '1px solid #e5e7eb' }}>
+              <i className="fa-solid fa-lock" style={{ color: '#9ca3af', fontSize: '0.9em' }}></i>
+              <input type="checkbox" checked disabled style={{ width: '18px', height: '18px' }} />
+              <div style={{ flex: 1 }}>
+                <div style={{ fontWeight: 600, color: '#374151', fontSize: '0.95em' }}>Revisión Auxiliar Admon Oriente</div>
+                <div style={{ fontSize: '0.8em', color: '#6b7280' }}>Paso actual — Obligatorio</div>
+              </div>
+              <span style={{ fontSize: '0.75em', padding: '3px 8px', borderRadius: '10px', background: '#e5e7eb', color: '#4b5563', fontWeight: 600 }}>Paso Actual</span>
+            </div>
+
+            {/* Pasos Intermedios a marcar/desmarcar */}
+            {tareasFlujo.slice(1, -1).map((t) => {
+              const isSelected = pasosSeleccionados.includes(t.id);
+              const cargoNombre = typeof t.cargo_asignado === "string" ? t.cargo_asignado : t.cargo_asignado?.nombre || "Sin cargo asignado";
+              return (
+                <label
+                  key={t.id}
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '12px',
+                    padding: '10px 14px',
+                    borderRadius: '8px',
+                    border: isSelected ? '1px solid #86efac' : '1px solid #e5e7eb',
+                    background: isSelected ? '#f0fdf4' : '#ffffff',
+                    cursor: 'pointer',
+                    transition: 'all 0.15s ease'
+                  }}
+                >
+                  <input
+                    type="checkbox"
+                    checked={isSelected}
+                    onChange={(e) => {
+                      if (e.target.checked) {
+                        setPasosSeleccionados((prev) => [...prev, t.id]);
+                      } else {
+                        setPasosSeleccionados((prev) => prev.filter((id) => id !== t.id));
+                      }
+                    }}
+                    style={{ width: '18px', height: '18px', accentColor: 'var(--pardo-red, #dc2626)', cursor: 'pointer' }}
+                  />
+                  <div style={{ flex: 1 }}>
+                    <div style={{ fontWeight: 600, color: isSelected ? '#15803d' : '#374151', fontSize: '0.95em' }}>
+                      {cargoNombre}
+                    </div>
+                    <div style={{ fontSize: '0.82em', color: '#6b7280' }}>
+                      {t.descripcion}
+                    </div>
+                  </div>
+                  <span
+                    style={{
+                      fontSize: '0.75em',
+                      padding: '3px 10px',
+                      borderRadius: '12px',
+                      background: isSelected ? '#dcfce7' : '#fee2e2',
+                      color: isSelected ? '#15803d' : '#991b1b',
+                      fontWeight: 600
+                    }}
+                  >
+                    {isSelected ? 'Incluido' : 'Omitido'}
+                  </span>
+                </label>
+              );
+            })}
+
+            {/* Paso Final: Cierre (Obligatorio) */}
+            <div style={{ display: 'flex', alignItems: 'center', gap: '12px', padding: '10px 14px', borderRadius: '8px', background: '#f3f4f6', border: '1px solid #e5e7eb' }}>
+              <i className="fa-solid fa-lock" style={{ color: '#9ca3af', fontSize: '0.9em' }}></i>
+              <input type="checkbox" checked disabled style={{ width: '18px', height: '18px' }} />
+              <div style={{ flex: 1 }}>
+                <div style={{ fontWeight: 600, color: '#374151', fontSize: '0.95em' }}>Revisión Final Auxiliar Admon Oriente</div>
+                <div style={{ fontSize: '0.8em', color: '#6b7280' }}>Cierre documental antes de Contabilidad — Obligatorio</div>
+              </div>
+              <span style={{ fontSize: '0.75em', padding: '3px 8px', borderRadius: '10px', background: '#e5e7eb', color: '#4b5563', fontWeight: 600 }}>Paso Final</span>
+            </div>
+          </div>
+
+          <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px', paddingTop: '10px', borderTop: '1px solid #f3f4f6' }}>
+            <button
+              type="button"
+              className="doc-btn doc-btn-secondary"
+              onClick={() => setShowModalDefinirFlujo(false)}
+              disabled={completandoTarea}
+            >
+              Cancelar
+            </button>
+            <button
+              type="button"
+              className="doc-btn doc-btn-primary"
+              disabled={completandoTarea}
+              onClick={async () => {
+                setShowModalDefinirFlujo(false);
+                await handleCompletarTarea(tareaActiva.id, saiaRadicado.id, pasosSeleccionados);
+              }}
+            >
+              <i className={`fa-solid ${completandoTarea ? 'fa-spinner fa-spin' : 'fa-check-double'}`}></i> Confirmar y Continuar Flujo
+            </button>
+          </div>
+        </div>
+      </div>
+    )}
+  </>
   );
 }

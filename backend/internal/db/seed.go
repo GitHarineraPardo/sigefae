@@ -6,17 +6,6 @@ import (
 
 func Seed(db *gorm.DB) error {
 
-	// ==========================
-	// Estado Correo: Recibido
-	// ==========================
-	estadoRecibido := EstadoCorreo{
-		ID:     1,
-		Nombre: "Recibido",
-		Activo: true,
-	}
-	if err := db.Where("id = ?", estadoRecibido.ID).FirstOrCreate(&estadoRecibido).Error; err != nil {
-		return err
-	}
 
 	// ==========================
 	// Estados de Radicación

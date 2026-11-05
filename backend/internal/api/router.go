@@ -17,17 +17,16 @@ import (
 	"sigefae/internal/codigo_qr"
 	"sigefae/internal/comentario"
 	"sigefae/internal/contacto"
-	"sigefae/internal/correo"
 	"sigefae/internal/db"
 	"sigefae/internal/departamento"
 	"sigefae/internal/detalle_documento_comercial"
 	"sigefae/internal/direccion"
 	"sigefae/internal/documento_comercial"
 	"sigefae/internal/documento_radicado"
-	"sigefae/internal/estado_correo"
 	"sigefae/internal/estado_documento_radicado"
 	"sigefae/internal/estado_tarea"
 	"sigefae/internal/gasto_proveedor"
+	"sigefae/internal/inbound"
 	"sigefae/internal/metodo_pago"
 	"sigefae/internal/moneda"
 	"sigefae/internal/municipio"
@@ -53,9 +52,10 @@ import (
 	"sigefae/internal/tipo_radicacion"
 	"sigefae/internal/trazabilidad"
 	"sigefae/internal/user"
+	"sigefae/procesos_aplicacion/proveedor_inbound"
 )
 
-func New(database *gorm.DB) *gin.Engine {
+func New(database *gorm.DB, ptService *proveedor_inbound.Service) *gin.Engine {
 
 	router := gin.Default()
 	router.Use(cors.New(cors.Config{
@@ -170,9 +170,6 @@ func New(database *gorm.DB) *gin.Engine {
 	receptorService := receptor.New(database)
 	receptorHandler := receptor.NewHandler(receptorService)
 
-	estadoCorreoService := estado_correo.New(database)
-	estadoCorreoHandler := estado_correo.NewHandler(estadoCorreoService)
-
 	estadoDocumentoRadicadoService := estado_documento_radicado.New(database)
 	estadoDocumentoRadicadoHandler := estado_documento_radicado.NewHandler(estadoDocumentoRadicadoService)
 
@@ -185,9 +182,6 @@ func New(database *gorm.DB) *gin.Engine {
 	archivoOrigenService := archivo_origen.New(database)
 	archivoOrigenHandler := archivo_origen.NewHandler(archivoOrigenService)
 
-	correoService := correo.New(database)
-	correoHandler := correo.NewHandler(correoService)
-
 	documentoComercialService := documento_comercial.New(database)
 	documentoComercialHandler := documento_comercial.NewHandler(documentoComercialService)
 
@@ -196,6 +190,8 @@ func New(database *gorm.DB) *gin.Engine {
 
 	codigoQrService := codigo_qr.New(database)
 	codigoQrHandler := codigo_qr.NewHandler(codigoQrService)
+
+	inboundHandler := inbound.NewHandler(ptService)
 
 	// ==========================
 	// NOTIFICACION PRIMERO (lo usan otros handlers)
@@ -331,6 +327,11 @@ protected.GET("/documentoradicado/mis-tareas", documentoRadicadoHandler.ListMisT
 
 		//documento comercial
 		protected.GET("/documentocomercial/:id", documentoComercialHandler.GetByID)
+
+		// =========================
+		// Inbound DIAN (PT API)
+		// =========================
+		protected.POST("/inbound/sync", inboundHandler.Sync)
 
 		protected.GET("/me", func(c *gin.Context) {
 			user := c.MustGet("user").(db.Usuario)
@@ -534,14 +535,6 @@ protected.GET("/documentoradicado/mis-tareas", documentoRadicadoHandler.ListMisT
 			admin.PATCH("/receptor/:id/activo", receptorHandler.UpdateStatus)
 
 			// =========================
-			// Estado Correo
-			// =========================
-			admin.POST("/estado-correo", estadoCorreoHandler.Create)
-			admin.GET("/estado-correo", estadoCorreoHandler.List)
-			admin.PUT("/estado-correo/:id", estadoCorreoHandler.Update)
-			admin.PATCH("/estado-correo/:id/activo", estadoCorreoHandler.UpdateStatus)
-
-			// =========================
 			// Estado Documento Radicado
 			// =========================
 			admin.POST("/estado-documento-radicado", estadoDocumentoRadicadoHandler.Create)
@@ -573,16 +566,6 @@ protected.GET("/documentoradicado/mis-tareas", documentoRadicadoHandler.ListMisT
 			admin.GET("/archivo-origen", archivoOrigenHandler.List)
 			admin.PUT("/archivo-origen/:id", archivoOrigenHandler.Update)
 			admin.PATCH("/archivo-origen/:id/activo", archivoOrigenHandler.UpdateStatus)
-
-			// =========================
-			// Correos
-			// =========================
-			admin.POST("/correo", correoHandler.Create)
-			admin.GET("/correo", correoHandler.List)
-			admin.GET("/correo/:id", correoHandler.GetByID)
-			admin.PUT("/correo/:id", correoHandler.Update)
-			admin.PATCH("/correo/:id/estado", correoHandler.UpdateStatus)
-			admin.PATCH("/correos/:id/activo", correoHandler.Delete)
 
 			// =========================
 			// Documento Comercial

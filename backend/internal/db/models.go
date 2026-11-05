@@ -9,8 +9,8 @@ func BaseModels() []any {
 		&TipoDocumento{}, &TipoPersona{}, &CategoriaProveedor{},
 		&ActividadEconomica{}, &Proveedor{}, &ResponsabilidadFiscal{},
 		&Contacto{}, &Rol{}, &Cargo{}, &Usuario{}, &Ruta{}, &PasoRuta{},
-		&Moneda{}, &Area{}, &Receptor{}, &EstadoCorreo{},
-		&Correo{}, &ArchivoOrigen{}, &Archivo{}, &DocumentoComercial{},
+		&Moneda{}, &Area{}, &Receptor{},
+		&ArchivoOrigen{}, &Archivo{}, &DocumentoComercial{},
 		&DetalleDocumentoComercial{}, &TipoFactura{}, &TipoPago{},
 		&MetodoPago{}, &TipoRadicacion{}, &CodigoQr{},
 		&EstadoDocumentoRadicado{}, &EstadoTarea{},
@@ -32,5 +32,6 @@ func CircularModels() []any {
 		&RadicadoNormaReparto{},
 		&ProveedorNormaReparto{},
 		&RadicadoActivoFijo{},
+		&EventoRadian{},
 	}
 }
