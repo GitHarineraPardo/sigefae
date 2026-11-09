@@ -1,3 +1,4 @@
 .env
 storage/*
 internal/sync/state.json
+cmd/sigefae-backend

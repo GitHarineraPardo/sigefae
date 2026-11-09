@@ -1,5 +1,3 @@
-import React from "react";
-
 const EVENTOS_CONFIG = [
   {
     codigo: "030",

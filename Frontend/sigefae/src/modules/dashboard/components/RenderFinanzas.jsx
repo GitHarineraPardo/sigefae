@@ -13,7 +13,6 @@ export default function RenderFinanzas({
   userRole,
   handleCausar,
   handlePagar,
-  handleSubirAnexo,
   obtenerToken,
   handleComprobantesSubidosLocal
 }) {

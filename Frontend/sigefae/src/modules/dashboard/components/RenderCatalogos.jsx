@@ -6,7 +6,7 @@ export default function RenderCatalogos({
   showDeleteConfirm, confirmDeleteCatalogo, cancelDeleteCatalogo, handleDeleteCatalogo,
   tiposPagoCatalogo, areasCatalogo, rutasCatalogo, usuariosCatalogo, cargosCatalogo,  proveedoresCatalogo,
   cfg, openCatalogoCreate, openCatalogoEdit, handleCatalogoFormChange,
-  handleCatalogoSubmit, handleToggleCatalogoStatus
+  handleCatalogoSubmit
 }) {
   const proveedores = Array.isArray(proveedoresCatalogo) ? proveedoresCatalogo : [];
 

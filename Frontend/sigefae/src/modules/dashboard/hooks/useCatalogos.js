@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { API } from "../constants/api";
 import { catalogoConfig } from "../constants/catalogoConfig";
 
@@ -23,7 +23,7 @@ export function useCatalogos(obtenerToken, activeTab) {
 
   const cfg = catalogoConfig[catalogoActivo];
 
-  const loadCatalogo = async (tipo) => {
+  const loadCatalogo = useCallback(async (tipo) => {
     const c = catalogoConfig[tipo];
     setCatalogoLoading(true);
     try {
@@ -35,9 +35,12 @@ export function useCatalogos(obtenerToken, activeTab) {
       setCatalogoItems(Array.isArray(data) ? data : []);
     } catch (err) { console.error(err); setCatalogoItems([]); }
     finally { setCatalogoLoading(false); }
-  };
+  }, [obtenerToken]);
 
-  useEffect(() => { if (activeTab === "catalogos") loadCatalogo(catalogoActivo); }, [activeTab, catalogoActivo]);
+  useEffect(() => {
+    if (activeTab !== "catalogos") return;
+    queueMicrotask(() => loadCatalogo(catalogoActivo));
+  }, [activeTab, catalogoActivo, loadCatalogo]);
   useEffect(() => {
     if (activeTab !== "catalogos") return;
     const headers = { Authorization: `Bearer ${obtenerToken()}` };

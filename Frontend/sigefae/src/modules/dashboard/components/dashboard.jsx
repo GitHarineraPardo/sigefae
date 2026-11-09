@@ -1,9 +1,8 @@
-import { useState, useEffect } from "react";
+import { lazy, Suspense, useState, useEffect } from "react";
 import "../dashboard.css";
 import "@fortawesome/fontawesome-free/css/all.min.css";
 import logo from "/logo.png";
-import { obtenerToken } from "../../auth/token.js";
-import PdfEditor from "../../../components/PdfEditor.jsx";
+const PdfEditor = lazy(() => import("../../../components/PdfEditor.jsx"));
 import NotificacionesDropdown from "../../../components/NotificacionesDropdown.jsx";
 import AdminToast from "../../../components/AdminToast.jsx";
 import { API } from "../constants/api.js";
@@ -51,7 +50,7 @@ import RenderGastosProveedor from "./RenderGastosProveedor.jsx";
 
 export default function ProcesosLogistica() {
   const [isSidebarOpen, setIsSidebarOpen] = useState(true);
-  const { userRol, userId, userName, userCargo, userCargoId, esAdmin, esUsuario, showDebug, puedeGestionarRecurso, obtenerToken } = useAuth();
+  const { userRol, userId, userCargo, userCargoId, esAdmin, esUsuario, puedeGestionarRecurso, obtenerToken } = useAuth();
   
   const initialTab = esAdmin ? "welcome" : "tareas";
   const [activeTab, setActiveTab] = useState(initialTab);
@@ -306,22 +305,24 @@ export default function ProcesosLogistica() {
 
       {/* PDF Editor */}
       {pdfEditor.open && editorPermitido && (
-        <PdfEditor
-          archivoId={pdfEditor.archivoId}
-          archivoNombre={pdfEditor.archivoNombre}
-          radicadoId={pdfEditor.radicadoId}
-          onClose={() => setPdfEditor({ open: false, archivoId: null, archivoNombre: null, radicadoId: null })}
-          onSaved={() => {
-            const radicadoId = pdfEditor.radicadoId;
-            setPdfEditor({ open: false, archivoId: null, archivoNombre: null, radicadoId: null });
-            if (activeTab === "tareas") { tareasHook.setSelectedTareaId(null); setTimeout(() => tareasHook.setSelectedTareaId(radicadoId), 10); }
-            else { radicadosHook.setSelectedRadicadoId(null); setTimeout(() => radicadosHook.setSelectedRadicadoId(radicadoId), 10); }
-            
-            if (saiaHook.saiaModalOpen && saiaHook.saiaRadicado) {
-              saiaHook.openSaia(saiaHook.saiaRadicado, activeTab, tareasHook.setSelectedTareaId, radicadosHook.setSelectedRadicadoId, flujoHook.recargarFlujo, flujoHook.recargarTrazabilidad, flujoHook.recargarNormas, flujoHook.recargarComentarios);
-            }
-          }}
-        />
+        <Suspense fallback={<div className="modal-overlay"><div className="modal-content">Cargando editor PDF...</div></div>}>
+          <PdfEditor
+            archivoId={pdfEditor.archivoId}
+            archivoNombre={pdfEditor.archivoNombre}
+            radicadoId={pdfEditor.radicadoId}
+            onClose={() => setPdfEditor({ open: false, archivoId: null, archivoNombre: null, radicadoId: null })}
+            onSaved={() => {
+              const radicadoId = pdfEditor.radicadoId;
+              setPdfEditor({ open: false, archivoId: null, archivoNombre: null, radicadoId: null });
+              if (activeTab === "tareas") { tareasHook.setSelectedTareaId(null); setTimeout(() => tareasHook.setSelectedTareaId(radicadoId), 10); }
+              else { radicadosHook.setSelectedRadicadoId(null); setTimeout(() => radicadosHook.setSelectedRadicadoId(radicadoId), 10); }
+
+              if (saiaHook.saiaModalOpen && saiaHook.saiaRadicado) {
+                saiaHook.openSaia(saiaHook.saiaRadicado, activeTab, tareasHook.setSelectedTareaId, radicadosHook.setSelectedRadicadoId, flujoHook.recargarFlujo, flujoHook.recargarTrazabilidad, flujoHook.recargarNormas, flujoHook.recargarComentarios);
+              }
+            }}
+          />
+        </Suspense>
       )}
     </>
   );

@@ -65,7 +65,7 @@ export function useDocumentos(obtenerToken, activeTab) {
     fetch(`${API}/tipo-documento?${t2}`, { headers }).then(r => r.json()).then(d => setTiposDocumentoCatalogo(Array.isArray(d) ? d : [])).catch(() => setTiposDocumentoCatalogo([]));
 
     return () => controller.abort();
-  }, [activeTab, obtenerToken]);
+  }, [activeTab, obtenerToken, areasCatalogo.length, monedasCatalogo.length]);
 
   useEffect(() => {
     if (!selectedDocId) return;

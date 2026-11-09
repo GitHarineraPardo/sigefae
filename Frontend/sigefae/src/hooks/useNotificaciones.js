@@ -103,9 +103,15 @@ export function useNotificaciones() {
   }, []);
 
   useEffect(() => {
-    cargar();
+    let disposed = false;
+    queueMicrotask(() => {
+      if (!disposed) cargar();
+    });
     const interval = setInterval(cargar, 30000);
-    return () => clearInterval(interval);
+    return () => {
+      disposed = true;
+      clearInterval(interval);
+    };
   }, [cargar]);
 
 	return { notificaciones, noLeidas, loading, marcarLeida, borrarNotificacion, recargar: cargar };
