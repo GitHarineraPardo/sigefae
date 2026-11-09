@@ -17,10 +17,16 @@ export default function RenderSaiaModal({
   esAdmin, esUsuario, userId, userRol, userCargo, userCargoId,
   setPdfEditor,  setSelectedTareaId, setSelectedRadicadoId,
   setShowDevolverModal, setDevolverForm,
-  openNormaModal, handleEliminarNorma, activosFijosRadicado, openActivoModal, handleEliminarActivoFijo, readOnly: externalReadOnly
+  openNormaModal, handleEliminarNorma, activosFijosRadicado, openActivoModal, handleEliminarActivoFijo, readOnly: externalReadOnly,
+  eventosDian = [], cargandoEventos = false, emitiendoEvento = false, handleEmitirEvento
 }) {
   const [showModalDefinirFlujo, setShowModalDefinirFlujo] = useState(false);
   const [pasosSeleccionados, setPasosSeleccionados] = useState([]);
+
+  // Estado para emisión de evento DIAN
+  const [modalEvento, setModalEvento] = useState(null);
+  const [formEvento, setFormEvento] = useState({ motivo: "", obs: "", comentario: "", codigoMotivo: "01" });
+  const [errorEmision, setErrorEmision] = useState(null);
 
   // ── Resizable sidebar ──────────────────────────────────────
   const SIDEBAR_MIN = 320;
@@ -87,7 +93,7 @@ export default function RenderSaiaModal({
     return propietario > 0 && propietario === Number(userId);
   };
 
-  const esAuxOriente = userCargo && userCargo.toLowerCase().includes("auxiliar admon oriente");
+  const esAuxOriente = (userCargo && userCargo.toLowerCase().includes("auxiliar admon oriente")) || esAdmin;
   const tareaActiva = (Array.isArray(tareasFlujo) ? tareasFlujo : []).find(t => t.estado?.nombre === "En Proceso");
   const tareasCompletadas = (Array.isArray(tareasFlujo) ? tareasFlujo : []).filter(t => t.estado?.nombre === "Completada");
   const esPrimerTurnoAuxOriente = 
@@ -97,7 +103,98 @@ export default function RenderSaiaModal({
     tareasFlujo[0].id === tareaActiva.id &&
     tareasCompletadas.length === 0;
 
+  // ── Lógica de Eventos DIAN exclusiva para Auxiliar Admon Oriente ──
+  const tieneCargoAuxOriente = Boolean(userCargo && userCargo.toLowerCase().includes("auxiliar admon oriente"));
+  const esRutaFinalizada = isFinalState(saiaRadicado.estado_posesion) || saiaRadicado.estado_posesion === 'Completado';
+  const tieneLDF = Boolean(saiaRadicado.documento_comercial?.ldf);
+  const puedeEmitirEventos = tieneCargoAuxOriente && esRutaFinalizada && tieneLDF;
 
+  const has030 = eventosDian.some(e => e.codigo_dian === "030" || e.tipo_evento === "ACKNOWLEDGED");
+  const has032 = eventosDian.some(e => e.codigo_dian === "032" || e.tipo_evento === "RECEIVEDGOODS");
+  const has034 = eventosDian.some(e => e.codigo_dian === "034" || e.tipo_evento === "ACCEPTED");
+  const has031 = eventosDian.some(e => e.codigo_dian === "031" || e.tipo_evento === "REJECTED");
+
+  const botonesEventos = [];
+  if (!has030) {
+    botonesEventos.push({
+      codigo: "030",
+      tipo: "ACKNOWLEDGED",
+      label: "Acuse (AC)",
+      icono: "fa-envelope-open-text",
+      clase: "acuse",
+      motivoDefault: "Acuse",
+      obsDefault: "Factura electrónica recibida",
+    });
+  }
+  if (!has032) {
+    botonesEventos.push({
+      codigo: "032",
+      tipo: "RECEIVEDGOODS",
+      label: "Recibo Bienes (RB)",
+      icono: "fa-box",
+      clase: "recibo",
+      motivoDefault: "Otro",
+      obsDefault: "Bienes o servicios recibidos a satisfacción",
+    });
+  }
+  if (!has034 && !has031) {
+    botonesEventos.push({
+      codigo: "034",
+      tipo: "ACCEPTED",
+      label: "Aceptación (AE)",
+      icono: "fa-circle-check",
+      clase: "aceptar",
+      motivoDefault: "Aceptación",
+      obsDefault: "Factura aprobada y aceptada para pago",
+    });
+    botonesEventos.push({
+      codigo: "031",
+      tipo: "REJECTED",
+      label: "Reclamo (RC)",
+      icono: "fa-circle-xmark",
+      clase: "rechazar",
+      motivoDefault: "Servicio no prestado",
+      obsDefault: "Reclamo registrado por disconformidad",
+    });
+  }
+
+  const abrirModalEmision = (btn) => {
+    // Validar pre-requisitos de eventos DIAN
+    if (btn.codigo === "032" && !has030) {
+      alert("Para emitir el Recibo de Bienes o Servicios (032), primero debe registrarse el Acuse de Recibo (030).");
+      return;
+    }
+    if ((btn.codigo === "034" || btn.codigo === "031") && !has032) {
+      alert("Para emitir la Aceptación (034) o Reclamo (031), primero debe registrarse el Recibo de Bienes o Servicios (032).");
+      return;
+    }
+
+    setErrorEmision(null);
+    setModalEvento(btn);
+    setFormEvento({
+      motivo: btn.motivoDefault,
+      obs: btn.obsDefault,
+      comentario: btn.obsDefault,
+      codigoMotivo: "01"
+    });
+  };
+
+  const submitEmitirEvento = async () => {
+    if (!modalEvento || !handleEmitirEvento) return;
+    setErrorEmision(null);
+    try {
+      await handleEmitirEvento(saiaRadicado.id, {
+        tipo: modalEvento.codigo,
+        motivo: formEvento.motivo,
+        observacion: formEvento.obs,
+        comentario: formEvento.comentario || formEvento.obs,
+        codigo_motivo: modalEvento.codigo === "031" ? formEvento.codigoMotivo : undefined,
+      });
+      setModalEvento(null);
+    } catch (err) {
+      setErrorEmision(err.message || "Error al emitir el evento ante la DIAN");
+    }
+  };
 
   return (
     <>
@@ -115,7 +212,31 @@ export default function RenderSaiaModal({
           </button>
         </div>
         <div className="saia-body">
-          <div className="saia-pdf-area">
+          <div className="saia-pdf-area" style={{ position: "relative" }}>
+            {/* ── Barra Flotante de Eventos DIAN para Auxiliar Admon Oriente ── */}
+            {puedeEmitirEventos && botonesEventos.length > 0 && (
+              <div className="saia-eventos-floating-bar">
+                <div className="floating-bar-label">
+                  <i className="fa-solid fa-stamp" style={{ color: "var(--pardo-blue)" }}></i>
+                  <span>Eventos DIAN:</span>
+                </div>
+                <div className="floating-bar-buttons">
+                  {botonesEventos.map(btn => (
+                    <button
+                      key={btn.codigo}
+                      className="floating-btn"
+                      onClick={() => abrirModalEmision(btn)}
+                      disabled={emitiendoEvento}
+                      title={`Emitir ${btn.label} ante la DIAN`}
+                    >
+                      <i className={`fa-solid ${btn.icono}`}></i>
+                      <span>{btn.label}</span>
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
+
             {saiaPdfUrl ? (
               anexoActual?.extension?.toLowerCase() !== 'pdf' && !anexoActual?.nombre?.toLowerCase().endsWith('.pdf') ? (
                 <div style={{ width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', backgroundColor: '#0f172a' }}>
@@ -208,7 +329,13 @@ export default function RenderSaiaModal({
                 </>
               )}
               {saiaActiveTab === 'flujo' && <RenderFlujoAprobacion tareasFlujo={tareasFlujo} esPrimerTurnoAuxOriente={esPrimerTurnoAuxOriente} />}
-              {saiaActiveTab === 'trazabilidad' && <RenderTrazabilidad historialTrazabilidad={historialTrazabilidad} />}
+              {saiaActiveTab === 'trazabilidad' && (
+                <RenderTrazabilidad
+                  historialTrazabilidad={historialTrazabilidad}
+                  eventosDian={eventosDian}
+                  cargandoEventos={cargandoEventos}
+                />
+              )}
               {saiaActiveTab === 'normas' && <RenderNormasReparto normasRepartoRadicado={normasRepartoRadicado} activosFijosRadicado={activosFijosRadicado} radicadoId={saiaRadicado.id} readOnly={readOnly} esAdmin={esAdmin} puedeGestionarRecurso={puedeGestionarRecurso} openNormaModal={openNormaModal} handleEliminarNorma={handleEliminarNorma} openActivoModal={openActivoModal} handleEliminarActivoFijo={handleEliminarActivoFijo} subtotalRadicado={saiaRadicado.documento_comercial?.subtotal || saiaRadicado.documento_comercial?.total || 0} />}
               {saiaActiveTab === 'comentarios' && <div className="saia-comments-wrapper"><RenderComentarios comentarios={comentarios} nuevoComentario={nuevoComentario} setNuevoComentario={setNuevoComentario} enviandoComentario={enviandoComentario} handleEnviarComentario={handleEnviarComentario} radicadoId={saiaRadicado.id} userId={userId} readOnly={readOnly} /></div>}
               {saiaActiveTab === 'acciones' && (
@@ -471,6 +598,103 @@ export default function RenderSaiaModal({
         </div>
       </div>
     )}
-  </>
+
+      {/* ── Modal de Confirmación de Emisión de Evento DIAN ── */}
+      {modalEvento && (
+        <div className="evento-confirm-overlay" onClick={() => !emitiendoEvento && setModalEvento(null)}>
+          <div className="evento-confirm-modal" onClick={e => e.stopPropagation()}>
+            <div className="evento-confirm-header">
+              <h3>
+                <i className={`fa-solid ${modalEvento.icono}`} style={{ color: 'var(--pardo-navy)' }}></i>
+                Emitir Evento DIAN: {modalEvento.label}
+              </h3>
+              <button
+                className="modal-close-btn"
+                onClick={() => !emitiendoEvento && setModalEvento(null)}
+                disabled={emitiendoEvento}
+                style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: '1.1em', color: '#64748b' }}
+              >
+                <i className="fa-solid fa-xmark"></i>
+              </button>
+            </div>
+
+            <div className="evento-confirm-body">
+              <div style={{ padding: '10px 14px', borderRadius: '8px', background: '#eff6ff', border: '1px solid #bfdbfe', fontSize: '12px', color: '#1e40af', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <i className="fa-solid fa-circle-info" style={{ fontSize: '14px' }}></i>
+                <span>Este evento será transmitido electrónicamente a la DIAN y quedará registrado de forma oficial e irrevocable para la factura electrónica.</span>
+              </div>
+
+              {errorEmision && (
+                <div style={{ padding: '10px 14px', borderRadius: '8px', background: '#fef2f2', border: '1px solid #fecaca', fontSize: '12px', color: '#b91c1c', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  <i className="fa-solid fa-triangle-exclamation"></i>
+                  <span>{errorEmision}</span>
+                </div>
+              )}
+
+              {modalEvento.codigo === '031' && (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '5px' }}>
+                  <label style={{ fontSize: '12px', fontWeight: 600, color: '#334155' }}>Código de Motivo de Reclamo:</label>
+                  <select
+                    value={formEvento.codigoMotivo || '01'}
+                    onChange={e => setFormEvento({ ...formEvento, codigoMotivo: e.target.value })}
+                    style={{ padding: '8px 10px', borderRadius: '6px', border: '1px solid #cbd5e1', fontSize: '12.5px' }}
+                    disabled={emitiendoEvento}
+                  >
+                    <option value="01">01 - Documento con inconsistencias</option>
+                    <option value="02">02 - Mercancía no entregada totalmente</option>
+                    <option value="03">03 - Mercancía no entregada parcialmente</option>
+                    <option value="04">04 - Servicio no prestado</option>
+                  </select>
+                </div>
+              )}
+
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '5px' }}>
+                <label style={{ fontSize: '12px', fontWeight: 600, color: '#334155' }}>Motivo:</label>
+                <input
+                  type="text"
+                  value={formEvento.motivo}
+                  onChange={e => setFormEvento({ ...formEvento, motivo: e.target.value })}
+                  placeholder="Motivo del evento"
+                  style={{ padding: '8px 10px', borderRadius: '6px', border: '1px solid #cbd5e1', fontSize: '12.5px' }}
+                  disabled={emitiendoEvento}
+                />
+              </div>
+
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '5px' }}>
+                <label style={{ fontSize: '12px', fontWeight: 600, color: '#334155' }}>Observación / Comentario:</label>
+                <textarea
+                  value={formEvento.obs}
+                  onChange={e => setFormEvento({ ...formEvento, obs: e.target.value, comentario: e.target.value })}
+                  placeholder="Observación sobre este evento..."
+                  rows={3}
+                  style={{ padding: '8px 10px', borderRadius: '6px', border: '1px solid #cbd5e1', fontSize: '12.5px', resize: 'vertical' }}
+                  disabled={emitiendoEvento}
+                />
+              </div>
+            </div>
+
+            <div className="evento-confirm-footer">
+              <button
+                type="button"
+                className="doc-btn doc-btn-secondary"
+                onClick={() => setModalEvento(null)}
+                disabled={emitiendoEvento}
+              >
+                Cancelar
+              </button>
+              <button
+                type="button"
+                className="doc-btn doc-btn-primary"
+                onClick={submitEmitirEvento}
+                disabled={emitiendoEvento || !formEvento.motivo?.trim()}
+              >
+                <i className={`fa-solid ${emitiendoEvento ? 'fa-spinner fa-spin' : 'fa-paper-plane'}`}></i>
+                {emitiendoEvento ? 'Transmitiendo a DIAN...' : 'Confirmar y Emitir'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+    </>
   );
 }

@@ -1,9 +1,14 @@
-export default function RenderTrazabilidad({ historialTrazabilidad }) {
+import TimelineEventosDIAN from "./TimelineEventosDIAN.jsx";
+
+export default function RenderTrazabilidad({ historialTrazabilidad = [], eventosDian = [], cargandoEventos = false }) {
   return (
     <div className="doc-section" style={{ display: "flex", flexDirection: "column", flex: 1, minHeight: 0 }}>
+      {/* ── Eventos DIAN (RADIAN) ── */}
+      <TimelineEventosDIAN eventosDian={eventosDian} cargando={cargandoEventos} />
+
       <h4>
         <i className="fa-solid fa-clock-rotate-left"></i>{" "}
-        Historial de Trazabilidad ({historialTrazabilidad.length})
+        Historial de Trazabilidad Interna ({historialTrazabilidad.length})
       </h4>
       <div
         style={{

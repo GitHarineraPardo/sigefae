@@ -298,6 +298,10 @@ export default function ProcesosLogistica() {
         openActivoModal={normasHook.openActivoModal}
         handleEliminarActivoFijo={normasHook.handleEliminarActivoFijo}
         readOnly={activeTab === "finanzas"}
+        eventosDian={saiaHook.eventosDian}
+        cargandoEventos={saiaHook.cargandoEventos}
+        emitiendoEvento={saiaHook.emitiendoEvento}
+        handleEmitirEvento={saiaHook.handleEmitirEvento}
       />
 
       {/* PDF Editor */}

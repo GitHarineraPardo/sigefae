@@ -52,3 +52,55 @@ type ListDocumentsResponse struct {
 	TotalPages      int             `json:"totalPages"`
 	AdditionalItems any             `json:"additionalItems"`
 }
+
+// ── Eventos DIAN (RADIAN) ────────────────────────────────────────────────
+
+// AcuseEventRequest representa el payload para POST /Issue/Acknowledgement/V2/{ldf}
+type AcuseEventRequest struct {
+	Motive         string `json:"motive"`
+	Observation    string `json:"observation"`
+	Comments       string `json:"comments"`
+	SourceDelivery string `json:"sourceDelivery"`
+	Canal          string `json:"canal"`
+	Medio          string `json:"medio"`
+}
+
+// ReciboGoodsEventRequest representa el payload para POST /Issue/ReceiveGoods/{ldf}
+type ReciboGoodsEventRequest struct {
+	Motive                         string  `json:"motive"`
+	Observation                    string  `json:"observation"`
+	Comments                       *string `json:"comments"`
+	SourceDelivery                 string  `json:"sourceDelivery"`
+	Canal                          string  `json:"canal"`
+	Medio                          string  `json:"medio"`
+	ReceiverDocumentType           string  `json:"receiverDocumentType"`
+	ReceiverDocumentNumber         string  `json:"receiverDocumentNumber"`
+	ReceiverVerificationDigit      string  `json:"receiverVerificationDigit"`
+	ReceiverName                   string  `json:"receiverName"`
+	ReceiverLastName               string  `json:"receiverLastName"`
+	ReceiverJobTitle               *string `json:"receiverJobTitle"`
+	ReceiverOrganizationDepartment *string `json:"receiverOrganizationDepartment"`
+	ReceiverObservation            *string `json:"receiverObservation"`
+	ReceiveDateTime                string  `json:"receiveDateTime"`
+}
+
+// AceptacionEventRequest representa el payload para POST /Issue/Accept/V2/{ldf}
+type AceptacionEventRequest struct {
+	Motive         string `json:"motive"`
+	Observation    string `json:"observation"`
+	Comments       string `json:"comments"`
+	SourceDelivery string `json:"sourceDelivery"`
+	Canal          string `json:"canal"`
+	Medio          string `json:"medio"`
+}
+
+// ReclamoEventRequest representa el payload para POST /Issue/Reject/V2/{ldf}
+type ReclamoEventRequest struct {
+	Motive         string `json:"motive"`
+	Observation    string `json:"observation"`
+	Comments       string `json:"comments"`
+	SourceDelivery string `json:"sourceDelivery"`
+	Canal          string `json:"canal"`
+	Medio          string `json:"medio"`
+	CodigoMotivo   string `json:"codigoMotivo"`
+}

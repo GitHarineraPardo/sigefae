@@ -31,6 +31,10 @@ func New(database *gorm.DB, client *Client) *Service {
 	}
 }
 
+func (s *Service) Client() *Client {
+	return s.client
+}
+
 type SyncStats struct {
 	TotalEncontrados int `json:"total_encontrados"`
 	NuevosProcesados int `json:"nuevos_procesados"`

@@ -71,6 +71,50 @@ export function useSaia(obtenerToken) {
     return () => { cancelled = true; };
   }, [saiaModalOpen, saiaRadicado, saiaAnexoIdx, obtenerToken]);
 
+  const [eventosDian, setEventosDian] = useState([]);
+  const [cargandoEventos, setCargandoEventos] = useState(false);
+  const [emitiendoEvento, setEmitiendoEvento] = useState(false);
+
+  const recargarEventosDian = async (radicadoId) => {
+    if (!radicadoId) return;
+    setCargandoEventos(true);
+    try {
+      const res = await fetchNoStore(`${API}/documentoradicado/${radicadoId}/eventos-dian?_t=${Date.now()}`, {
+        headers: { Authorization: `Bearer ${obtenerToken()}` }
+      });
+      if (res.ok) {
+        const data = await res.json();
+        setEventosDian(Array.isArray(data) ? data : []);
+      }
+    } catch (err) {
+      console.error("Error cargando eventos DIAN:", err);
+    } finally {
+      setCargandoEventos(false);
+    }
+  };
+
+  const handleEmitirEvento = async (radicadoId, payload) => {
+    setEmitiendoEvento(true);
+    try {
+      const res = await fetch(`${API}/documentoradicado/${radicadoId}/eventos-dian`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${obtenerToken()}`,
+        },
+        body: JSON.stringify(payload),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        throw new Error(data.error || "Error al emitir evento ante la DIAN");
+      }
+      await recargarEventosDian(radicadoId);
+      return data;
+    } finally {
+      setEmitiendoEvento(false);
+    }
+  };
+
   const openSaia = async (radicadoBase, fromTab, setSelectedTareaId, setSelectedRadicadoId, recargarFlujo, recargarTrazabilidad, recargarNormas, recargarComentarios) => {
     setSaiaPdfUrl(prev => {
       if (prev) URL.revokeObjectURL(prev);
@@ -94,6 +138,7 @@ export function useSaia(obtenerToken) {
         if (fromTab === "tareas") { setSelectedTareaId(rad.id); setSelectedRadicadoId(null); }
         else { setSelectedRadicadoId(rad.id); setSelectedTareaId(null); }
         await recargarFlujo(rad.id); await recargarTrazabilidad(rad.id); await recargarNormas(rad.id); await recargarComentarios(rad.id);
+        await recargarEventosDian(rad.id);
         setSaiaModalOpen(true);
       }
     } catch (err) { console.error(err); alert("Error cargando detalle del radicado"); }
@@ -102,6 +147,7 @@ export function useSaia(obtenerToken) {
   return {
     saiaModalOpen, setSaiaModalOpen, saiaRadicado, setSaiaRadicado,
     saiaActiveTab, setSaiaActiveTab, saiaAnexoIdx, setSaiaAnexoIdx, saiaPdfUrl, setSaiaPdfUrl,
+    eventosDian, setEventosDian, cargandoEventos, emitiendoEvento, recargarEventosDian, handleEmitirEvento,
     openSaia
   };
 }

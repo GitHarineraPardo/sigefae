@@ -25,6 +25,7 @@ import (
 	"sigefae/internal/documento_radicado"
 	"sigefae/internal/estado_documento_radicado"
 	"sigefae/internal/estado_tarea"
+	"sigefae/internal/evento_dian"
 	"sigefae/internal/gasto_proveedor"
 	"sigefae/internal/inbound"
 	"sigefae/internal/metodo_pago"
@@ -193,6 +194,13 @@ func New(database *gorm.DB, ptService *proveedor_inbound.Service) *gin.Engine {
 
 	inboundHandler := inbound.NewHandler(ptService)
 
+	var ptClient *proveedor_inbound.Client
+	if ptService != nil {
+		ptClient = ptService.Client()
+	}
+	eventoDianService := evento_dian.NewService(database, ptClient)
+	eventoDianHandler := evento_dian.NewHandler(eventoDianService)
+
 	// ==========================
 	// NOTIFICACION PRIMERO (lo usan otros handlers)
 	// ==========================
@@ -274,6 +282,13 @@ protected.GET("/documentoradicado/mis-tareas", documentoRadicadoHandler.ListMisT
 		protected.GET("/documentoradicado/:id/tareas", tareaHandler.ListByRadicado)
 		protected.PATCH("/tarea/:id/completar", tareaHandler.Completar)
 		protected.POST("/tarea/:id/devolver", tareaHandler.Devolver)
+
+		// ── Eventos DIAN (RADIAN) ──
+		protected.GET("/documentoradicado/:id/eventos-dian", eventoDianHandler.List)
+		protected.POST("/documentoradicado/:id/eventos-dian", eventoDianHandler.Emitir)
+		protected.GET("/radicados/:id/eventos-dian", eventoDianHandler.List)
+		protected.POST("/radicados/:id/eventos-dian", eventoDianHandler.Emitir)
+
 		// moneda list
 		protected.GET("/monedas", monedaHandler.List)
 		// =========================

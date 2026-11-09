@@ -247,3 +247,86 @@ func (c *Client) DownloadZip(ldfList []string) ([]byte, error) {
 
 	return zipBytes, nil
 }
+
+// postEvent ejecuta una petición POST hacia un endpoint de eventos con el Bearer token y cabecera X-Who
+func (c *Client) postEvent(endpoint string, payload any) (string, error) {
+	doRequest := func(token string) (*http.Response, error) {
+		bodyBytes, err := json.Marshal(payload)
+		if err != nil {
+			return nil, fmt.Errorf("error serializando body de evento: %w", err)
+		}
+
+		httpReq, err := http.NewRequest(http.MethodPost, endpoint, bytes.NewReader(bodyBytes))
+		if err != nil {
+			return nil, err
+		}
+
+		httpReq.Header.Set("Content-Type", "application/json")
+		if c.xWhoAuthEventos != "" {
+			httpReq.Header.Set("x-who", c.xWhoAuthEventos)
+		}
+		httpReq.Header.Set("Authorization", "Bearer "+token)
+
+		return c.httpClient.Do(httpReq)
+	}
+
+	token, err := c.GetToken()
+	if err != nil {
+		return "", err
+	}
+
+	resp, err := doRequest(token)
+	if err != nil {
+		return "", fmt.Errorf("error ejecutando evento en %s: %w", endpoint, err)
+	}
+
+	// 401 reintento
+	if resp.StatusCode == http.StatusUnauthorized {
+		resp.Body.Close()
+		c.ResetToken()
+		newToken, err := c.GetToken()
+		if err != nil {
+			return "", fmt.Errorf("error renovando token tras 401: %w", err)
+		}
+		resp, err = doRequest(newToken)
+		if err != nil {
+			return "", fmt.Errorf("error ejecutando evento en reintento: %w", err)
+		}
+	}
+	defer resp.Body.Close()
+
+	respBytes, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return "", fmt.Errorf("error leyendo respuesta de evento: %w", err)
+	}
+
+	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+		return string(respBytes), fmt.Errorf("evento falló con HTTP %d: %s", resp.StatusCode, string(respBytes))
+	}
+
+	return string(respBytes), nil
+}
+
+// EmitirAcuse envía el evento 030 (Acuse de Recibo) ante /Issue/Acknowledgement/V2/{ldf}
+func (c *Client) EmitirAcuse(ldf string, req AcuseEventRequest) (string, error) {
+	endpoint := fmt.Sprintf("%s/Issue/Acknowledgement/V2/%s", c.baseURL, ldf)
+	return c.postEvent(endpoint, req)
+}
+
+// EmitirReciboBienes envía el evento 032 (Recibo del Bien o Prestación del Servicio) ante /Issue/ReceiveGoods/{ldf}
+func (c *Client) EmitirReciboBienes(ldf string, req ReciboGoodsEventRequest) (string, error) {
+	endpoint := fmt.Sprintf("%s/Issue/ReceiveGoods/%s", c.baseURL, ldf)
+	return c.postEvent(endpoint, req)
+}
+
+// EmitirAceptacion envía el evento 034 (Aceptación Expresa) ante /Issue/Accept/V2/{ldf}
+func (c *Client) EmitirAceptacion(ldf string, req AceptacionEventRequest) (string, error) {
+	endpoint := fmt.Sprintf("%s/Issue/Accept/V2/%s", c.baseURL, ldf)
+	return c.postEvent(endpoint, req)
+}
+
+// EmitirReclamo envía el evento 031 (Reclamo / Rechazo) ante /Issue/Reject/V2/{ldf}
+func (c *Client) EmitirReclamo(ldf string, req ReclamoEventRequest) (string, error) {
+	endpoint := fmt.Sprintf("%s/Issue/Reject/V2/%s", c.baseURL, ldf)
+	return c.postEvent(endpoint, req)
+}

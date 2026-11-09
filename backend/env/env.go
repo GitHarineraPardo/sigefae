@@ -25,6 +25,7 @@ type Env struct {
 	PtAPIPassword            string
 	PtAPIXWhoListarDescargar string
 	PtAPIXWhoAuthEventos     string
+	PtAPITenantID            string
 }
 
 func getEnv(keys ...string) string {
@@ -73,6 +74,7 @@ func Load(paths ...string) (*Env, error) {
 		PtAPIPassword:            getEnv("PT_API_PASSWORD"),
 		PtAPIXWhoListarDescargar: getEnv("PT_API_X_WHO_LISTAR-DESCARGAR", "PT_API_X_WHO_LISTAR_DESCARGAR"),
 		PtAPIXWhoAuthEventos:     getEnv("PT_API_X_WHO_AUTENTICAR-EVENTOS", "PT_API_X_WHO_AUTENTICAR_EVENTOS"),
+		PtAPITenantID:            getEnv("PT_API_TENANT_ID"),
 	}
 
 	if cfg.DBHost == "" ||
