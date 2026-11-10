@@ -5,7 +5,7 @@ export default function RenderComentarios({
   return (
     <div className="doc-section">
       <h4>
-        <i className="fa-solid fa-comments"></i>{" "}
+        <i className="fa-solid fa-comment-dots"></i>{" "}
         Comentarios ({comentarios.length})
       </h4>
 

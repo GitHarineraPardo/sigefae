@@ -113,27 +113,28 @@ export default function ProcesosLogistica() {
   // Colapsar secciones
   useEffect(() => {
     const handler = (e) => {
-      const h = e.target.closest && e.target.closest('.doc-section > h4');
+      const h = e.target.closest && e.target.closest('h4');
       if (!h) return;
-      if (h.closest('.saia-comments-wrapper')) return;
+      if (!h.parentElement?.classList.contains('doc-section')) return;
+      if (e.target.closest('button, a, input, select, textarea')) return;
       const parent = h.parentElement;
-      if (!parent) return;
       parent.classList.toggle('collapsed');
+      h.setAttribute('aria-expanded', String(!parent.classList.contains('collapsed')));
+    };
+    const keyHandler = (e) => {
+      if (e.key !== 'Enter' && e.key !== ' ') return;
+      const h = e.target.closest && e.target.closest('h4');
+      if (!h || e.target !== h || !h.parentElement?.classList.contains('doc-section')) return;
+      e.preventDefault();
+      handler(e);
     };
     document.addEventListener('click', handler);
-    return () => document.removeEventListener('click', handler);
+    document.addEventListener('keydown', keyHandler);
+    return () => {
+      document.removeEventListener('click', handler);
+      document.removeEventListener('keydown', keyHandler);
+    };
   }, []);
-
-  // Colapsar por defecto al abrir detalle
-  useEffect(() => {
-    if (radicadosHook.radicadoDetail || tareasHook.tareaDetail) {
-      setTimeout(() => {
-        const parent = document.querySelector('.doc-detail-content');
-        if (!parent) return;
-        parent.querySelectorAll('.doc-section').forEach((el) => el.classList.add('collapsed'));
-      }, 30);
-    }
-  }, [radicadosHook.radicadoDetail, tareasHook.tareaDetail]);
 
   const getTabInfo = () => {
     switch (activeTab) {

@@ -18,11 +18,12 @@ export default function RenderRadicados({
     if (Number.isNaN(date.getTime())) return "";
     return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
   };
+  const getFechaPrincipal = (radicado) => radicado.documento_comercial?.fecha_recepcion_dian || radicado.fecha_radicacion;
   
   const filteredList = baseFilteredList.filter(rad => {
     if (activeSubTab === "finalizados" && !isFinalState(rad.estado_posesion)) return false;
     if (activeSubTab !== "finalizados" && isFinalState(rad.estado_posesion)) return false;
-    const fecha = getFechaCalendario(rad.fecha_radicacion);
+    const fecha = getFechaCalendario(getFechaPrincipal(rad));
     if (fechaInicio && (!fecha || fecha < fechaInicio)) return false;
     if (fechaFin && (!fecha || fecha > fechaFin)) return false;
     return true;
@@ -61,7 +62,21 @@ export default function RenderRadicados({
             </select>
           </div>
           </div>
-        <div className="radicados-filter-row">
+        <div className="radicados-subtabs-row">
+          <div className="radicados-subtabs">
+            <button
+              className={`doc-btn ${activeSubTab === "en_proceso" ? "doc-btn-primary" : "doc-btn-secondary"}`}
+              onClick={() => setActiveSubTab("en_proceso")}
+            >
+              En Proceso
+            </button>
+            <button
+              className={`doc-btn ${activeSubTab === "finalizados" ? "doc-btn-primary" : "doc-btn-secondary"}`}
+              onClick={() => setActiveSubTab("finalizados")}
+            >
+              Finalizados
+            </button>
+          </div>
           <div className="date-filter">
             <label htmlFor="radicados-fecha-inicio"><i className="fa-regular fa-calendar"></i> Desde</label>
             <input id="radicados-fecha-inicio" type="date" value={fechaInicio} max={fechaFin || undefined} onChange={e => setFechaInicio(e.target.value)} />
@@ -76,20 +91,6 @@ export default function RenderRadicados({
             <button type="button" className={viewMode === "cards" ? "active" : ""} onClick={() => setViewMode("cards")} title="Vista de tarjetas"><i className="fa-solid fa-grip"></i><span>Tarjetas</span></button>
             <button type="button" className={viewMode === "table" ? "active" : ""} onClick={() => setViewMode("table")} title="Vista tabulada"><i className="fa-solid fa-table-list"></i><span>Tabla</span></button>
           </div>
-        </div>
-        <div style={{ display: "flex", gap: "10px", borderBottom: "1px solid #e2e8f0", paddingBottom: "10px" }}>
-          <button 
-            className={`doc-btn ${activeSubTab === "en_proceso" ? "doc-btn-primary" : "doc-btn-secondary"}`} 
-            onClick={() => setActiveSubTab("en_proceso")}
-          >
-            En Proceso
-          </button>
-          <button 
-            className={`doc-btn ${activeSubTab === "finalizados" ? "doc-btn-primary" : "doc-btn-secondary"}`} 
-            onClick={() => setActiveSubTab("finalizados")}
-          >
-            Finalizados
-          </button>
         </div>
       </div>
 
@@ -115,7 +116,8 @@ export default function RenderRadicados({
                   <i className="fa-solid fa-briefcase"></i> Cargo actual: {rad.cargo_actual?.nombre || "Sin cargo asignado"}
                 </div>
                 <div className="rad-card-bottom">
-                  <span className="rad-card-date"><i className="fa-regular fa-calendar"></i> {formatearFecha(rad.fecha_radicacion)}</span>
+                  <span className="rad-card-date"><i className="fa-regular fa-calendar"></i> Recibido DIAN: {formatearFecha(getFechaPrincipal(rad))}</span>
+                  <span className="rad-card-date rad-card-date-secondary">Radicado: {formatearFecha(rad.fecha_radicacion)}</span>
                   {(!isFinalState(rad.estado_posesion)) && rad.usuario_actual?.nombre && (
                     <span className="rad-card-user" title={`${rad.usuario_actual.nombre} — ${tareasPorRadicado[rad.id]?.descripcion || rad.paso_actual?.nombre || "Sin paso"}`}>
                       <i className="fa-solid fa-user"></i> {rad.usuario_actual.nombre}
@@ -132,11 +134,11 @@ export default function RenderRadicados({
               </tr></thead>
               <tbody>{filteredList.map((rad) => (
                 <tr key={rad.id} className={selectedRadicadoId === rad.id ? "active" : ""} onClick={() => openSaia(rad, "radicados")}>
-                  <td className="table-main-cell"><strong>{rad.numero_radicado || "—"}</strong><small>{rad.usuario_actual?.nombre || "Sin asignar"}</small></td>
+                  <td className="table-main-cell"><strong>{rad.numero_radicado || "—"}</strong><small>{rad.cargo_actual?.nombre || rad.cargo_actual_nombre || "Sin cargo asignado"}</small></td>
                   <td>{rad.documento_comercial?.numero_documento || "Sin documento"}</td>
                   <td className="table-truncate" title={rad.documento_comercial?.proveedor?.razon_social}>{rad.documento_comercial?.proveedor?.razon_social || "Sin proveedor"}</td>
                   <td>{rad.documento_comercial?.tipo || "—"}</td>
-                  <td className="table-date">{formatearFecha(rad.fecha_radicacion)}</td>
+                  <td className="table-date"><strong>{formatearFecha(getFechaPrincipal(rad))}</strong><small>Radicado: {formatearFecha(rad.fecha_radicacion)}</small></td>
                   <td>{rad.ruta?.zona || "—"}</td>
                   <td className="table-truncate">{rad.cargo_actual?.nombre || "Sin cargo"}</td>
                   <td><span className={`status-badge ${getStatusClass(rad.estado_posesion)}`}>{getEstadoLabel(rad.estado_posesion)}</span></td>

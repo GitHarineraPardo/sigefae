@@ -77,6 +77,23 @@ export default function RenderSaiaModal({
   }, []);
   // ────────────────────────────────────────────────────────────
 
+  const toggleSection = (event) => {
+    const heading = event.target.closest("h4");
+    if (!heading || !heading.parentElement?.classList.contains("doc-section")) return;
+    if (event.target.closest("button, a, input, select, textarea")) return;
+    event.stopPropagation();
+    const section = heading.parentElement;
+    const collapsed = section.classList.toggle("collapsed");
+    heading.setAttribute("aria-expanded", String(!collapsed));
+  };
+
+  const handleSectionKeyDown = (event) => {
+    if (event.key !== "Enter" && event.key !== " ") return;
+    if (event.target.tagName !== "H4") return;
+    event.preventDefault();
+    toggleSection(event);
+  };
+
   if (!saiaModalOpen || !saiaRadicado) return null;
 
   const archivos = Array.isArray(saiaRadicado.archivos) ? saiaRadicado.archivos : [];
@@ -86,6 +103,9 @@ export default function RenderSaiaModal({
   });
   const anexoActual = archivosPdf[saiaAnexoIdx];
   const readOnly = isFinalState(saiaRadicado.estado_posesion) || externalReadOnly;
+  const cargoResponsable = typeof saiaRadicado.cargo_actual === "string"
+    ? saiaRadicado.cargo_actual
+    : saiaRadicado.cargo_actual?.nombre || saiaRadicado.cargo_actual_nombre || "—";
   const esContabilidad = userRol === "Contabilidad";
   const puedeGestionarRecurso = (creadoPorId) => {
     if (esAdmin) return true;
@@ -263,26 +283,27 @@ export default function RenderSaiaModal({
                   {tab === 'flujo' && <i className="fa-solid fa-route"></i>}
                   {tab === 'trazabilidad' && <i className="fa-solid fa-clock-rotate-left"></i>}
                   {tab === 'normas' && <i className="fa-solid fa-chart-pie"></i>}
-                  {tab === 'comentarios' && <i className="fa-solid fa-comments"></i>}
+                  {tab === 'comentarios' && <i className="fa-solid fa-comment-dots"></i>}
                   {tab === 'acciones' && <i className="fa-solid fa-bolt"></i>}
                 </button>
               ))}
             </div>
-            <div className="saia-tab-content">
+            <div className="saia-tab-content" onClick={toggleSection} onKeyDown={handleSectionKeyDown}>
               {saiaActiveTab === 'info' && (
                 <>
                   <div className="doc-section">
                     <h4><i className="fa-solid fa-circle-info"></i> Información del Radicado</h4>
                     <div className="doc-grid">
                       <div className="doc-field"><label>Número</label><span>{saiaRadicado.numero_radicado}</span></div>
-                      <div className="doc-field"><label>Fecha</label><span>{new Date(saiaRadicado.fecha_radicacion).toLocaleString()}</span></div>
+                      <div className="doc-field"><label>Fecha recibido DIAN</label><span>{saiaRadicado.documento_comercial?.fecha_recepcion_dian ? new Date(saiaRadicado.documento_comercial.fecha_recepcion_dian).toLocaleString() : '—'}</span></div>
+                      <div className="doc-field"><label>Fecha radicación interna</label><span>{saiaRadicado.fecha_radicacion ? new Date(saiaRadicado.fecha_radicacion).toLocaleString() : '—'}</span></div>
                       <div className="doc-field"><label>Tipo</label><span>{saiaRadicado.tipo_radicacion?.nombre || '—'}</span></div>
                       <div className="doc-field"><label>Ruta</label><span>{saiaRadicado.ruta?.nombre || '—'}</span></div>
                       <div className="doc-field"><label>Área</label><span>{typeof saiaRadicado.ruta?.area === 'string' ? saiaRadicado.ruta.area : (saiaRadicado.ruta?.area?.nombre || '—')}</span></div>
                       <div className="doc-field"><label>Método Pago</label><span>{saiaRadicado.metodo_pago?.nombre || '—'}</span></div>
                       <div className="doc-field"><label>Estado</label><span>{saiaRadicado.estado_posesion || '—'}</span></div>
-                      <div className="doc-field"><label>Paso Actual</label><span>{saiaRadicado.paso_actual?.nombre || 'Inicio'}</span></div>
-                      <div className="doc-field"><label>Responsable</label><span>{saiaRadicado.usuario_actual?.nombre || '—'}</span></div>
+                      {!isFinalState(saiaRadicado.estado_posesion) && <div className="doc-field"><label>Paso Actual</label><span>{saiaRadicado.paso_actual?.nombre || 'Inicio'}</span></div>}
+                      <div className="doc-field"><label>Cargo responsable</label><span>{cargoResponsable}</span></div>
                     </div>
                   </div>
                   {saiaRadicado.documento_comercial && (
@@ -319,12 +340,6 @@ export default function RenderSaiaModal({
                         </div>
                       )}
                     </>
-                  )}
-                  {saiaRadicado.qr?.url && (
-                    <div className="doc-section" style={{ textAlign: 'center' }}>
-                      <h4><i className="fa-solid fa-qrcode"></i> QR Expediente</h4>
-                      <img src={`https://api.qrserver.com/v1/create-qr-code/?size=180x180&data=${encodeURIComponent(saiaRadicado.qr.url)}`} alt="QR" style={{ margin: '12px auto', display: 'block', borderRadius: 8, border: '1px solid #e5e7eb' }} />
-                    </div>
                   )}
                 </>
               )}
@@ -364,7 +379,7 @@ export default function RenderSaiaModal({
                             )}
                           </div>
                         ))}
-                      </div>
+                        </div>
                     )}
                   </div>
                   {!readOnly && (

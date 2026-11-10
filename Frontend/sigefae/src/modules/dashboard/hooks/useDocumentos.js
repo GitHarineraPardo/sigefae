@@ -207,8 +207,9 @@ export function useDocumentos(obtenerToken, activeTab) {
       result = result.filter(d => (d.numero_documento?.toLowerCase().includes(q)) || (d.proveedor?.razon_social?.toLowerCase().includes(q)));
     }
     result.sort((a, b) => {
-      if (sortDocs === 'fecha_desc') return new Date(b.created_at) - new Date(a.created_at);
-      if (sortDocs === 'fecha_asc') return new Date(a.created_at) - new Date(b.created_at);
+      const fechaPrincipal = (documento) => documento.fecha_recepcion_dian || documento.created_at;
+      if (sortDocs === 'fecha_desc') return new Date(fechaPrincipal(b)) - new Date(fechaPrincipal(a));
+      if (sortDocs === 'fecha_asc') return new Date(fechaPrincipal(a)) - new Date(fechaPrincipal(b));
       if (sortDocs === 'estado') return a.activo === b.activo ? 0 : (a.activo ? -1 : 1);
       return 0;
     });

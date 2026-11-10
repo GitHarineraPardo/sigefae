@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { formatCurrency } from "../helpers/formatters";
 import { API } from "../constants/api";
 
@@ -65,7 +66,24 @@ export default function RenderDocumentos({
   esAdmin, openCrearDocModal, openRadicarModal,
   syncingInbound, syncResult, handleSyncInbound
 }) {
-  const filteredList = getFilteredDocs();
+  const [fechaInicio, setFechaInicio] = useState("");
+  const [fechaFin, setFechaFin] = useState("");
+  const getFechaPrincipal = (documento) => documento.fecha_recepcion_dian || documento.created_at;
+  const getFechaCalendario = (fecha) => {
+    if (!fecha) return "";
+    const date = new Date(fecha);
+    if (Number.isNaN(date.getTime())) return "";
+    return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
+  };
+  const formatearFecha = (fecha) => fecha
+    ? new Date(fecha).toLocaleDateString("es-CO", { day: "2-digit", month: "short", year: "numeric" })
+    : "—";
+  const filteredList = getFilteredDocs().filter((documento) => {
+    const fecha = getFechaCalendario(getFechaPrincipal(documento));
+    if (fechaInicio && (!fecha || fecha < fechaInicio)) return false;
+    if (fechaFin && (!fecha || fecha > fechaFin)) return false;
+    return true;
+  });
   return (
     <div className="correos-container">
       <div className="correos-list">
@@ -127,6 +145,21 @@ export default function RenderDocumentos({
             <option value="estado">Por Estado</option>
           </select>
         </div>
+        <div className="inbound-date-filters">
+          <div className="date-filter">
+            <label htmlFor="inbound-fecha-inicio"><i className="fa-regular fa-calendar"></i> Recibido desde</label>
+            <input id="inbound-fecha-inicio" type="date" value={fechaInicio} max={fechaFin || undefined} onChange={e => setFechaInicio(e.target.value)} />
+          </div>
+          <div className="date-filter">
+            <label htmlFor="inbound-fecha-fin"><i className="fa-regular fa-calendar"></i> Recibido hasta</label>
+            <input id="inbound-fecha-fin" type="date" value={fechaFin} min={fechaInicio || undefined} onChange={e => setFechaFin(e.target.value)} />
+          </div>
+          {(fechaInicio || fechaFin) && (
+            <button className="clear-date-filter" type="button" onClick={() => { setFechaInicio(""); setFechaFin(""); }}>
+              <i className="fa-solid fa-rotate-left"></i> Limpiar fechas
+            </button>
+          )}
+        </div>
         {loadingDocs ? <p style={{ padding: "15px" }}>Cargando documentos...</p> : filteredList.length === 0 ? (
           <p style={{ padding: "15px", color: "#6b7280" }}>No hay documentos pendientes.</p>
         ) : (
@@ -136,7 +169,7 @@ export default function RenderDocumentos({
               <div key={doc.id} className={`correo-item ${selectedDocId === doc.id ? "active" : ""}`} onClick={() => setSelectedDocId(doc.id)}>
                 <div className="correo-item-header">
                   <strong>{doc.proveedor?.razon_social || "Sin proveedor"}</strong>
-                  <span className="correo-date">{new Date(doc.fecha_documento).toLocaleDateString()}</span>
+                  <span className="correo-date">{formatearFecha(getFechaPrincipal(doc))}</span>
                 </div>
                 <div className="correo-item-subject" style={{ color: "#64748b", fontSize: "12px", marginBottom: "6px" }}>
                   {tipoLabel} · #{doc.numero_documento}

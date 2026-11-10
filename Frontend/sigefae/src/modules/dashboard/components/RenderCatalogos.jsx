@@ -1,4 +1,20 @@
+import { useState } from "react";
 import { catalogoConfig } from "../constants/catalogoConfig";
+
+function CatalogoGroup({ icon, title, count, level = "zone", children }) {
+  const [collapsed, setCollapsed] = useState(false);
+
+  return (
+    <section className={`catalogo-group catalogo-group-${level} ${collapsed ? "collapsed" : ""}`}>
+      <button type="button" className="catalogo-group-header" onClick={() => setCollapsed(value => !value)} aria-expanded={!collapsed}>
+        <span className="catalogo-group-title"><i className={`fa-solid ${icon}`}></i>{title}</span>
+        <span className="catalogo-group-meta">{count}</span>
+        <i className="fa-solid fa-chevron-down catalogo-group-chevron"></i>
+      </button>
+      {!collapsed && <div className="catalogo-group-content">{children}</div>}
+    </section>
+  );
+}
 
 export default function RenderCatalogos({
   catalogoActivo, setCatalogoActivo, catalogoItems, catalogoLoading,
@@ -135,42 +151,23 @@ export default function RenderCatalogos({
     return (
       <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
         {Object.keys(zonas).sort().map(zona => (
-          <div key={zona} style={{ background: "#f8fafc", border: "1px solid #e2e8f0", borderRadius: 10, overflow: "hidden" }}>
-            <div style={{ padding: "10px 16px", background: "linear-gradient(90deg, #1e3a5f 0%, #2563eb 100%)", color: "#fff", display: "flex", alignItems: "center", gap: 8 }}>
-              <i className="fa-solid fa-location-dot" />
-              <span style={{ fontWeight: 700, fontSize: "0.95em", letterSpacing: "0.04em" }}>{zona}</span>
-              <span style={{ marginLeft: "auto", fontSize: "0.78em", opacity: 0.8 }}>
-                {Object.values(zonas[zona]).reduce((a, b) => a + b.length, 0)} ruta(s)
-              </span>
-            </div>
+          <CatalogoGroup key={zona} icon="fa-location-dot" title={zona} count={`${Object.values(zonas[zona]).reduce((a, b) => a + b.length, 0)} ruta(s)`}>
             {Object.keys(zonas[zona]).sort().map(area => (
-              <div key={area} style={{ borderTop: "1px solid #e2e8f0" }}>
-                <div style={{ padding: "8px 16px 8px 28px", background: "#eef2ff", display: "flex", alignItems: "center", gap: 8 }}>
-                  <i className="fa-solid fa-building" style={{ color: "#6366f1", fontSize: "0.8em" }} />
-                  <span style={{ fontWeight: 600, fontSize: "0.85em", color: "#4338ca" }}>{area}</span>
-                  <span style={{ marginLeft: "auto", fontSize: "0.75em", color: "#6b7280" }}>{zonas[zona][area].length} ruta(s)</span>
-                </div>
+              <CatalogoGroup key={area} icon="fa-building" title={area} count={`${zonas[zona][area].length} ruta(s)`} level="area">
                 {zonas[zona][area].map((item, idx) => (
-                  <div key={item.id} style={{
-                    display: "flex", alignItems: "center", gap: 10,
-                    padding: "8px 16px 8px 44px",
-                    background: idx % 2 === 0 ? "#fff" : "#f9fafb",
-                    borderTop: "1px solid #f1f5f9"
-                  }}>
-                    <i className="fa-solid fa-route" style={{ color: "#94a3b8", fontSize: "0.75em", flexShrink: 0 }} />
-                    <span style={{ flex: 1, fontSize: "0.88em", fontWeight: 500, color: "#1e293b" }}>{item.nombre}</span>
-                    <span className={`status-badge ${item.activo ? "radicado" : "doc-pendiente"}`} style={{ fontSize: "0.75em" }}>
-                      {item.activo ? "Activo" : "Inactivo"}
-                    </span>
+                  <div key={item.id} className={`catalogo-route-row ${idx % 2 ? "striped" : ""}`}>
+                    <i className="fa-solid fa-route catalogo-route-icon" />
+                    <span className="catalogo-route-name">{item.nombre}</span>
+                    <span className={`status-badge ${item.activo ? "radicado" : "doc-pendiente"}`}>{item.activo ? "Activo" : "Inactivo"}</span>
                     <div className="catalogo-actions">
                       <button className="btn-icon btn-edit" onClick={() => openCatalogoEdit(item)} title="Editar"><i className="fa-solid fa-pen" /></button>
-                      <button className="btn-icon btn-delete" onClick={() => confirmDeleteCatalogo(item)} title="Eliminar" style={{ color: "#ef4444", marginLeft: 4 }}><i className="fa-solid fa-xmark" /></button>
+                      <button className="btn-icon btn-delete" onClick={() => confirmDeleteCatalogo(item)} title="Eliminar"><i className="fa-solid fa-xmark" /></button>
                     </div>
                   </div>
                 ))}
-              </div>
+              </CatalogoGroup>
             ))}
-          </div>
+          </CatalogoGroup>
         ))}
       </div>
     );
@@ -198,42 +195,19 @@ export default function RenderCatalogos({
     return (
       <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
         {Object.keys(zonas).sort().map(zona => (
-          <div key={zona} style={{ background: "#f8fafc", border: "1px solid #e2e8f0", borderRadius: 10, overflow: "hidden" }}>
-            <div style={{ padding: "10px 16px", background: "linear-gradient(90deg, #1e3a5f 0%, #2563eb 100%)", color: "#fff", display: "flex", alignItems: "center", gap: 8 }}>
-              <i className="fa-solid fa-location-dot" />
-              <span style={{ fontWeight: 700, fontSize: "0.95em", letterSpacing: "0.04em" }}>{zona}</span>
-            </div>
+          <CatalogoGroup key={zona} icon="fa-location-dot" title={zona} count="">
             {Object.keys(zonas[zona]).sort().map(area => (
-              <div key={area} style={{ borderTop: "1px solid #e2e8f0" }}>
-                <div style={{ padding: "8px 16px 8px 28px", background: "#eef2ff", display: "flex", alignItems: "center", gap: 8 }}>
-                  <i className="fa-solid fa-building" style={{ color: "#6366f1", fontSize: "0.8em" }} />
-                  <span style={{ fontWeight: 600, fontSize: "0.85em", color: "#4338ca" }}>{area}</span>
-                </div>
+              <CatalogoGroup key={area} icon="fa-building" title={area} count="" level="area">
                 {Object.values(zonas[zona][area]).map((rutaGroup, rIdx) => (
-                  <div key={rIdx} style={{ borderTop: "1px solid #f1f5f9" }}>
-                    <div style={{ padding: "7px 16px 7px 44px", background: "#f0f4ff", display: "flex", alignItems: "center", gap: 8 }}>
-                      <i className="fa-solid fa-route" style={{ color: "#3b82f6", fontSize: "0.8em" }} />
-                      <span style={{ fontWeight: 600, fontSize: "0.82em", color: "#1d4ed8" }}>{rutaGroup.nombre}</span>
-                      <span style={{ marginLeft: "auto", fontSize: "0.72em", color: "#6b7280" }}>{rutaGroup.pasos.length} paso(s)</span>
-                    </div>
+                  <CatalogoGroup key={rIdx} icon="fa-route" title={rutaGroup.nombre} count={`${rutaGroup.pasos.length} paso(s)`} level="route">
                     {rutaGroup.pasos.map((paso, pIdx) => (
-                      <div key={paso.id} style={{
-                        display: "flex", alignItems: "center", gap: 10,
-                        padding: "7px 16px 7px 60px",
-                        background: pIdx % 2 === 0 ? "#fff" : "#f9fafb",
-                        borderTop: "1px solid #f1f5f9"
-                      }}>
-                        <span style={{
-                          minWidth: 24, height: 24, borderRadius: "50%",
-                          background: "#e0e7ff", color: "#4338ca",
-                          display: "flex", alignItems: "center", justifyContent: "center",
-                          fontSize: "0.72em", fontWeight: 700, flexShrink: 0
-                        }}>{paso.orden}</span>
-                        <span style={{ flex: 1, fontSize: "0.85em", color: "#1e293b" }}>{paso.nombre}</span>
-                        <span style={{ fontSize: "0.75em", color: "#6b7280", marginRight: 6 }}>
+                      <div key={paso.id} className={`catalogo-step-row ${pIdx % 2 ? "striped" : ""}`}>
+                        <span className="catalogo-step-order">{paso.orden}</span>
+                        <span className="catalogo-route-name">{paso.nombre}</span>
+                        <span className="catalogo-step-assignee">
                           {paso.usuario ? `👤 ${paso.usuario}` : paso.cargo ? `💼 ${paso.cargo}` : "—"}
                         </span>
-                        <span className={`status-badge ${paso.activo ? "radicado" : "doc-pendiente"}`} style={{ fontSize: "0.72em" }}>
+                        <span className={`status-badge ${paso.activo ? "radicado" : "doc-pendiente"}`}>
                           {paso.activo ? "Activo" : "Inactivo"}
                         </span>
                         <div className="catalogo-actions">
@@ -242,11 +216,11 @@ export default function RenderCatalogos({
                         </div>
                       </div>
                     ))}
-                  </div>
+                  </CatalogoGroup>
                 ))}
-              </div>
+              </CatalogoGroup>
             ))}
-          </div>
+          </CatalogoGroup>
         ))}
       </div>
     );

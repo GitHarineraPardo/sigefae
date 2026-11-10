@@ -104,8 +104,9 @@ export function useRadicados(obtenerToken, activeTab) {
       );
     }
     result.sort((a, b) => {
-      if (sortRadicados === 'fecha_desc') return new Date(b.fecha_radicacion) - new Date(a.fecha_radicacion);
-      if (sortRadicados === 'fecha_asc') return new Date(a.fecha_radicacion) - new Date(b.fecha_radicacion);
+      const fechaPrincipal = (radicado) => radicado.documento_comercial?.fecha_recepcion_dian || radicado.fecha_radicacion;
+      if (sortRadicados === 'fecha_desc') return new Date(fechaPrincipal(b)) - new Date(fechaPrincipal(a));
+      if (sortRadicados === 'fecha_asc') return new Date(fechaPrincipal(a)) - new Date(fechaPrincipal(b));
       if (sortRadicados === 'estado') return (a.estado_posesion || '').localeCompare(b.estado_posesion || '');
       return 0;
     });
