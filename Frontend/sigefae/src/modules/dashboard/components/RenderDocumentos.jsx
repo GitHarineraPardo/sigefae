@@ -85,106 +85,169 @@ export default function RenderDocumentos({
     return true;
   });
   return (
-    <div className="correos-container">
-      <div className="correos-list">
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "0 15px", flexWrap: "wrap", gap: "8px" }}>
-          <h3>Facturas Inbound ({filteredList.length})</h3>
-          <div style={{ display: "flex", gap: "8px" }}>
-            {handleSyncInbound && (
+    <div className="inbound-module-wrapper">
+      {/* ── BARRA SUPERIOR DE HERRAMIENTAS Y FILTROS ── */}
+      <div className="inbound-top-toolbar">
+        <div className="inbound-toolbar-left">
+          <div className="inbound-search-box">
+            <i className="fa-solid fa-magnifying-glass"></i>
+            <input
+              type="text"
+              placeholder="Buscar factura o proveedor..."
+              value={searchDocs}
+              onChange={e => setSearchDocs(e.target.value)}
+            />
+            {searchDocs && (
               <button
-                className="doc-btn"
-                onClick={() => handleSyncInbound(30)}
-                disabled={syncingInbound}
-                title="Consultar y descargar facturas electrónicas desde el Proveedor Tecnológico DIAN"
-                style={{
-                  backgroundColor: syncingInbound ? "#9ca3af" : "#0284c7",
-                  color: "#ffffff",
-                  display: "inline-flex",
-                  alignItems: "center",
-                  gap: "6px",
-                  cursor: syncingInbound ? "not-allowed" : "pointer"
-                }}
+                className="inbound-clear-search"
+                type="button"
+                onClick={() => setSearchDocs("")}
+                title="Limpiar búsqueda"
               >
-                <i className={`fa-solid fa-arrows-rotate ${syncingInbound ? "fa-spin" : ""}`}></i>
-                {syncingInbound ? "Sincronizando..." : "Sincronizar DIAN"}
-              </button>
-            )}
-            {esAdmin && (
-              <button className="doc-btn doc-btn-primary" onClick={openCrearDocModal}>
-                <i className="fa-solid fa-plus"></i> Crear Manual
+                <i className="fa-solid fa-xmark"></i>
               </button>
             )}
           </div>
-        </div>
 
-        {syncResult && (
-          <div style={{
-            margin: "10px 15px",
-            padding: "8px 12px",
-            backgroundColor: "#ecfdf5",
-            border: "1px solid #a7f3d0",
-            borderRadius: "6px",
-            fontSize: "12px",
-            color: "#065f46",
-            display: "flex",
-            alignItems: "center",
-            gap: "8px"
-          }}>
-            <i className="fa-solid fa-circle-check"></i>
-            <span>
-              Sincronización exitosa: <strong>{syncResult.total_encontrados}</strong> en DIAN, <strong>{syncResult.nuevos_procesados}</strong> nuevas descargadas, <strong>{syncResult.actualizados}</strong> actualizadas.
-            </span>
-          </div>
-        )}
-
-        <div className="list-controls">
-          <input type="text" placeholder="Buscar factura o proveedor..." value={searchDocs} onChange={e => setSearchDocs(e.target.value)} />
-          <select value={sortDocs} onChange={e => setSortDocs(e.target.value)}>
+          <select
+            className="inbound-sort-select"
+            value={sortDocs}
+            onChange={e => setSortDocs(e.target.value)}
+          >
             <option value="fecha_desc">Más recientes</option>
             <option value="fecha_asc">Más antiguos</option>
             <option value="estado">Por Estado</option>
           </select>
+
+          {/* Rango de fechas horizontal y estilizado */}
+          <div className="inbound-date-range">
+            <span className="date-range-icon"><i className="fa-regular fa-calendar"></i></span>
+            <span className="date-range-label">Recibido:</span>
+            <input
+              id="inbound-fecha-inicio"
+              type="date"
+              className="date-range-input"
+              value={fechaInicio}
+              max={fechaFin || undefined}
+              onChange={e => setFechaInicio(e.target.value)}
+              title="Fecha inicial"
+            />
+            <span className="date-range-sep">a</span>
+            <input
+              id="inbound-fecha-fin"
+              type="date"
+              className="date-range-input"
+              value={fechaFin}
+              min={fechaInicio || undefined}
+              onChange={e => setFechaFin(e.target.value)}
+              title="Fecha límite"
+            />
+            {(fechaInicio || fechaFin) && (
+              <button
+                className="date-range-clear-btn"
+                type="button"
+                onClick={() => { setFechaInicio(""); setFechaFin(""); }}
+                title="Limpiar filtro de fechas"
+              >
+                <i className="fa-solid fa-xmark"></i>
+              </button>
+            )}
+          </div>
         </div>
-        <div className="inbound-date-filters">
-          <div className="date-filter">
-            <label htmlFor="inbound-fecha-inicio"><i className="fa-regular fa-calendar"></i> Recibido desde</label>
-            <input id="inbound-fecha-inicio" type="date" value={fechaInicio} max={fechaFin || undefined} onChange={e => setFechaInicio(e.target.value)} />
-          </div>
-          <div className="date-filter">
-            <label htmlFor="inbound-fecha-fin"><i className="fa-regular fa-calendar"></i> Recibido hasta</label>
-            <input id="inbound-fecha-fin" type="date" value={fechaFin} min={fechaInicio || undefined} onChange={e => setFechaFin(e.target.value)} />
-          </div>
-          {(fechaInicio || fechaFin) && (
-            <button className="clear-date-filter" type="button" onClick={() => { setFechaInicio(""); setFechaFin(""); }}>
-              <i className="fa-solid fa-rotate-left"></i> Limpiar fechas
+
+        <div className="inbound-toolbar-right">
+          {handleSyncInbound && (
+            <button
+              className="doc-btn"
+              onClick={() => handleSyncInbound(30)}
+              disabled={syncingInbound}
+              title="Consultar y descargar facturas electrónicas desde el Proveedor Tecnológico DIAN"
+              style={{
+                backgroundColor: syncingInbound ? "#9ca3af" : "#0284c7",
+                color: "#ffffff",
+                display: "inline-flex",
+                alignItems: "center",
+                gap: "6px",
+                cursor: syncingInbound ? "not-allowed" : "pointer"
+              }}
+            >
+              <i className={`fa-solid fa-arrows-rotate ${syncingInbound ? "fa-spin" : ""}`}></i>
+              <span>{syncingInbound ? "Sincronizando..." : "Sincronizar DIAN"}</span>
+            </button>
+          )}
+          {esAdmin && (
+            <button className="doc-btn doc-btn-primary" onClick={openCrearDocModal}>
+              <i className="fa-solid fa-plus"></i>
+              <span>Crear Manual</span>
             </button>
           )}
         </div>
-        {loadingDocs ? <p style={{ padding: "15px" }}>Cargando documentos...</p> : filteredList.length === 0 ? (
-          <p style={{ padding: "15px", color: "#6b7280" }}>No hay documentos pendientes.</p>
-        ) : (
-          filteredList.map((doc) => {
-            const tipoLabel = doc.tipo === "FACTURA_ELECTRONICA" ? "Factura" : doc.tipo;
-            return (
-              <div key={doc.id} className={`correo-item ${selectedDocId === doc.id ? "active" : ""}`} onClick={() => setSelectedDocId(doc.id)}>
-                <div className="correo-item-header">
-                  <strong>{doc.proveedor?.razon_social || "Sin proveedor"}</strong>
-                  <span className="correo-date">{formatearFecha(getFechaPrincipal(doc))}</span>
-                </div>
-                <div className="correo-item-subject" style={{ color: "#64748b", fontSize: "12px", marginBottom: "6px" }}>
-                  {tipoLabel} · #{doc.numero_documento}
-                </div>
-                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: "8px", marginTop: "4px" }}>
-                  {renderEventoBadge(doc.evento_dian, true)}
-                  <span style={{ fontWeight: 600, fontSize: "12.5px", color: "#1e293b", marginLeft: "auto" }}>
-                    {formatCurrency(doc.total)}
-                  </span>
-                </div>
-              </div>
-            );
-          })
-        )}
       </div>
+
+      {syncResult && (
+        <div style={{
+          margin: "10px 18px",
+          padding: "8px 12px",
+          backgroundColor: syncResult.total_encontrados === 0 ? "#fffbeb" : "#ecfdf5",
+          border: syncResult.total_encontrados === 0 ? "1px solid #fcd34d" : "1px solid #a7f3d0",
+          borderRadius: "6px",
+          fontSize: "12px",
+          color: syncResult.total_encontrados === 0 ? "#92400e" : "#065f46",
+          display: "flex",
+          alignItems: "center",
+          gap: "8px"
+        }}>
+          <i className={`fa-solid ${syncResult.total_encontrados === 0 ? "fa-triangle-exclamation" : "fa-circle-check"}`}></i>
+          <span>
+            {syncResult.total_encontrados === 0
+              ? "La consulta a DIAN no devolvió facturas para el rango solicitado."
+              : <>Sincronización exitosa: <strong>{syncResult.total_encontrados}</strong> en DIAN, <strong>{syncResult.nuevos_procesados}</strong> nuevas descargadas, <strong>{syncResult.actualizados}</strong> actualizadas.</>}
+            {syncResult.no_procesados > 0 && <> <strong>{syncResult.no_procesados}</strong> no pudieron procesarse; revisa los registros del backend.</>}
+          </span>
+          {syncResult.detalles_fallos?.length > 0 && (
+            <details style={{ marginLeft: "auto", maxWidth: "55%" }}>
+              <summary style={{ cursor: "pointer" }}>Ver detalles</summary>
+              <ul style={{ margin: "6px 0 0", paddingLeft: 18 }}>
+                {syncResult.detalles_fallos.map((detalle) => <li key={detalle}>{detalle}</li>)}
+              </ul>
+            </details>
+          )}
+        </div>
+      )}
+
+      {/* ── CONTENEDOR PRINCIPAL: LISTA + DETALLE ── */}
+      <div className="correos-container">
+        <div className="correos-list">
+          <div className="correos-list-header">
+            <h3>Facturas Inbound</h3>
+            <span className="inbound-count-pill">{filteredList.length}</span>
+          </div>
+
+          {loadingDocs ? <p style={{ padding: "15px" }}>Cargando documentos...</p> : filteredList.length === 0 ? (
+            <p style={{ padding: "15px", color: "#6b7280" }}>No hay documentos pendientes.</p>
+          ) : (
+            filteredList.map((doc) => {
+              const tipoLabel = doc.tipo === "FACTURA_ELECTRONICA" ? "Factura" : doc.tipo;
+              return (
+                <div key={doc.id} className={`correo-item ${selectedDocId === doc.id ? "active" : ""}`} onClick={() => setSelectedDocId(doc.id)}>
+                  <div className="correo-item-header">
+                    <strong>{doc.proveedor?.razon_social || "Sin proveedor"}</strong>
+                    <span className="correo-date">{formatearFecha(getFechaPrincipal(doc))}</span>
+                  </div>
+                  <div className="correo-item-subject" style={{ color: "#64748b", fontSize: "12px", marginBottom: "6px" }}>
+                    {tipoLabel} · #{doc.numero_documento}
+                  </div>
+                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: "8px", marginTop: "4px" }}>
+                    {renderEventoBadge(doc.evento_dian, true)}
+                    <span style={{ fontWeight: 600, fontSize: "12.5px", color: "#1e293b", marginLeft: "auto" }}>
+                      {formatCurrency(doc.total)}
+                    </span>
+                  </div>
+                </div>
+              );
+            })
+          )}
+        </div>
 
       <div className="correo-detail">
         {!selectedDocId ? (
@@ -310,6 +373,7 @@ export default function RenderDocumentos({
           </div>
         )}
       </div>
+    </div>
     </div>
   );
 }

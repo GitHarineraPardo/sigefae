@@ -41,6 +41,39 @@ export default function TimelineEventosDIAN({ eventosDian = [], cargando = false
     if (e.tipo_evento) eventosMap[e.tipo_evento.toUpperCase()] = e;
   });
 
+  // Inferencia RADIAN: Si existe un evento posterior (032, 034 o 031), los eventos anteriores
+  // obligatoriamente ya ocurrieron (provienen de Inbound o registro previo de la DIAN)
+  const has030 = Boolean(eventosMap["030"] || eventosMap["ACKNOWLEDGED"]);
+  const has032 = Boolean(eventosMap["032"] || eventosMap["RECEIVEDGOODS"]);
+  const has034 = Boolean(eventosMap["034"] || eventosMap["ACCEPTED"]);
+  const has031 = Boolean(eventosMap["031"] || eventosMap["REJECTED"]);
+
+  if (!has030 && (has032 || has034 || has031)) {
+    const ref = eventosMap["032"] || eventosMap["034"] || eventosMap["031"] || {};
+    const synthetic = {
+      codigo_dian: "030",
+      tipo_evento: "ACKNOWLEDGED",
+      fecha_envio: ref.fecha_envio || ref.created_at || new Date().toISOString(),
+      usuario_nombre: "Buzón Inbound (Automático)",
+      observacion: "Acuse de recibo generado automáticamente por el proveedor tecnológico al recibir la factura",
+    };
+    eventosMap["030"] = synthetic;
+    eventosMap["ACKNOWLEDGED"] = synthetic;
+  }
+
+  if (!has032 && (has034 || has031)) {
+    const ref = eventosMap["034"] || eventosMap["031"] || {};
+    const synthetic = {
+      codigo_dian: "032",
+      tipo_evento: "RECEIVEDGOODS",
+      fecha_envio: ref.fecha_envio || ref.created_at || new Date().toISOString(),
+      usuario_nombre: "Buzón Inbound (Automático)",
+      observacion: "Recibo de bienes o prestación de servicios registrado previamente ante la DIAN",
+    };
+    eventosMap["032"] = synthetic;
+    eventosMap["RECEIVEDGOODS"] = synthetic;
+  }
+
   return (
     <div className="dian-timeline-container">
       <div className="dian-timeline-title">

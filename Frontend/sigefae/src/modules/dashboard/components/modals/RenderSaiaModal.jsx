@@ -134,8 +134,16 @@ export default function RenderSaiaModal({
   const has034 = eventosDian.some(e => e.codigo_dian === "034" || e.tipo_evento === "ACCEPTED");
   const has031 = eventosDian.some(e => e.codigo_dian === "031" || e.tipo_evento === "REJECTED");
 
+  // Inferencia RADIAN: Si existe un evento superior o la factura ya vino con un estado DIAN,
+  // los eventos anteriores ya ocurrieron (provienen de Inbound o registro previo ante la DIAN)
+  const docEvento = (saiaRadicado?.documento_comercial?.evento_dian || "").toUpperCase().trim();
+  const effectiveHas030 = has030 || has032 || has034 || has031 || ["ACKNOWLEDGED", "RECEIVEDGOODS", "ACCEPTED", "REJECTED"].includes(docEvento);
+  const effectiveHas032 = has032 || has034 || has031 || ["RECEIVEDGOODS", "ACCEPTED", "REJECTED"].includes(docEvento);
+  const effectiveHas034 = has034 || docEvento === "ACCEPTED";
+  const effectiveHas031 = has031 || docEvento === "REJECTED";
+
   const botonesEventos = [];
-  if (!has030) {
+  if (!effectiveHas030) {
     botonesEventos.push({
       codigo: "030",
       tipo: "ACKNOWLEDGED",
@@ -146,7 +154,7 @@ export default function RenderSaiaModal({
       obsDefault: "Factura electrónica recibida",
     });
   }
-  if (!has032) {
+  if (effectiveHas030 && !effectiveHas032) {
     botonesEventos.push({
       codigo: "032",
       tipo: "RECEIVEDGOODS",
@@ -157,7 +165,7 @@ export default function RenderSaiaModal({
       obsDefault: "Bienes o servicios recibidos a satisfacción",
     });
   }
-  if (!has034 && !has031) {
+  if (effectiveHas032 && !effectiveHas034 && !effectiveHas031) {
     botonesEventos.push({
       codigo: "034",
       tipo: "ACCEPTED",
@@ -180,11 +188,11 @@ export default function RenderSaiaModal({
 
   const abrirModalEmision = (btn) => {
     // Validar pre-requisitos de eventos DIAN
-    if (btn.codigo === "032" && !has030) {
+    if (btn.codigo === "032" && !effectiveHas030) {
       alert("Para emitir el Recibo de Bienes o Servicios (032), primero debe registrarse el Acuse de Recibo (030).");
       return;
     }
-    if ((btn.codigo === "034" || btn.codigo === "031") && !has032) {
+    if ((btn.codigo === "034" || btn.codigo === "031") && !effectiveHas032) {
       alert("Para emitir la Aceptación (034) o Reclamo (031), primero debe registrarse el Recibo de Bienes o Servicios (032).");
       return;
     }

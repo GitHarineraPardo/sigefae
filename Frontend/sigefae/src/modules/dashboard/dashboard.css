@@ -1519,20 +1519,198 @@ body {
     max-width: 100%;
 }
 
-.inbound-date-filters {
-    display: flex;
-    align-items: flex-end;
-    flex-wrap: wrap;
-    gap: 10px;
-    margin: 0 15px 10px;
-    padding: 10px 0 0;
-    border-top: 1px solid var(--gray-100);
+/* ── INBOUND MODULE LAYOUT & TOOLBAR ── */
+.inbound-module-wrapper {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  height: 100%;
+  overflow: hidden;
+  background: white;
 }
-.inbound-date-filters .date-filter input {
-    min-width: 145px;
+
+.inbound-top-toolbar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 18px;
+  background: #f8fafc;
+  border-bottom: 1px solid var(--gray-200);
+  flex-wrap: wrap;
 }
-.inbound-date-filters .clear-date-filter {
-    margin-bottom: 0;
+
+.inbound-toolbar-left {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  flex: 1;
+}
+
+.inbound-toolbar-right {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
+}
+
+.inbound-search-box {
+  position: relative;
+  display: flex;
+  align-items: center;
+  min-width: 200px;
+  max-width: 260px;
+  flex: 1;
+}
+
+.inbound-search-box i.fa-magnifying-glass {
+  position: absolute;
+  left: 10px;
+  font-size: 12px;
+  color: var(--gray-400);
+  pointer-events: none;
+}
+
+.inbound-search-box input {
+  width: 100%;
+  padding: 7px 28px 7px 30px;
+  border: 1px solid var(--gray-300);
+  border-radius: 6px;
+  font-size: 12.5px;
+  background: white;
+  transition: all 0.2s;
+  outline: none;
+}
+
+.inbound-search-box input:focus {
+  border-color: var(--pardo-blue);
+  box-shadow: 0 0 0 2px rgba(44, 82, 130, 0.12);
+}
+
+.inbound-clear-search {
+  position: absolute;
+  right: 8px;
+  background: none;
+  border: none;
+  color: var(--gray-400);
+  cursor: pointer;
+  padding: 2px 4px;
+  font-size: 12px;
+}
+.inbound-clear-search:hover {
+  color: var(--gray-700);
+}
+
+.inbound-sort-select {
+  padding: 7px 10px;
+  border: 1px solid var(--gray-300);
+  border-radius: 6px;
+  font-size: 12.5px;
+  background: white;
+  color: var(--gray-700);
+  outline: none;
+  cursor: pointer;
+}
+
+.inbound-sort-select:focus {
+  border-color: var(--pardo-blue);
+}
+
+.inbound-date-range {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background: white;
+  border: 1px solid var(--gray-300);
+  border-radius: 6px;
+  padding: 4px 10px;
+  font-size: 12px;
+  color: var(--gray-700);
+}
+
+.inbound-date-range .date-range-icon {
+  color: var(--pardo-blue);
+  font-size: 13px;
+}
+
+.inbound-date-range .date-range-label {
+  font-weight: 600;
+  color: var(--gray-600);
+  font-size: 11.5px;
+  margin-right: 2px;
+}
+
+.inbound-date-range .date-range-input {
+  border: 1px solid var(--gray-200);
+  border-radius: 4px;
+  padding: 3px 6px;
+  font-size: 11.5px;
+  color: var(--gray-800);
+  background: #f8fafc;
+  outline: none;
+}
+
+.inbound-date-range .date-range-input:focus {
+  border-color: var(--pardo-blue);
+  background: white;
+}
+
+.inbound-date-range .date-range-sep {
+  color: var(--gray-400);
+  font-weight: 500;
+  font-size: 11px;
+}
+
+.inbound-date-range .date-range-clear-btn {
+  background: #f1f5f9;
+  border: 1px solid var(--gray-200);
+  border-radius: 4px;
+  color: var(--gray-500);
+  cursor: pointer;
+  padding: 2px 6px;
+  font-size: 11px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.15s;
+}
+
+.inbound-date-range .date-range-clear-btn:hover {
+  background: #fee2e2;
+  color: #dc2626;
+  border-color: #fca5a5;
+}
+
+.correos-list-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 18px;
+  background: white;
+  border-bottom: 1px solid var(--gray-200);
+  position: sticky;
+  top: 0;
+  z-index: 2;
+}
+
+.correos-list-header h3 {
+  margin: 0 !important;
+  padding: 0 !important;
+  font-size: 13.5px !important;
+  font-weight: 700 !important;
+  color: var(--pardo-navy) !important;
+  border: none !important;
+  background: none !important;
+}
+
+.inbound-count-pill {
+  background: #e0f2fe;
+  color: #0369a1;
+  font-size: 11px;
+  font-weight: 700;
+  padding: 2px 8px;
+  border-radius: 12px;
 }
 
 @media (max-width: 900px) {

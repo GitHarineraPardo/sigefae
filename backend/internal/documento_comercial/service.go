@@ -214,7 +214,7 @@ func (s *Service) List() ([]Response, error) {
 		Preload("Area").
 		Preload("TipoFactura").
 		Preload("Moneda").
-		Order("created_at DESC").
+		Order("COALESCE(fecha_recepcion_dian, created_at) DESC").
 		Find(&documentos).Error; err != nil {
 
 		return nil, err

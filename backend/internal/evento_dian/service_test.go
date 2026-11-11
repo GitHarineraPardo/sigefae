@@ -214,3 +214,90 @@ func TestEmitirEvento_Exitoso(t *testing.T) {
 	assert.NoError(t, err)
 	assert.Len(t, lista2, 3)
 }
+
+func TestEmitirEvento_FacturaVieneAcusadaInbound(t *testing.T) {
+	database := setupTestDB(t)
+	svc := NewService(database, nil)
+
+	cargoAux := db.Cargo{Nombre: "Auxiliar Admon Oriente", Activo: true}
+	database.Create(&cargoAux)
+	rolUsuario := db.Rol{Nombre: "Usuario"}
+	database.Create(&rolUsuario)
+
+	userAux := db.Usuario{
+		Nombre:  "Jennyfer Auxiliar",
+		Email:   "jennyfer@test.com",
+		RolID:   rolUsuario.ID,
+		CargoID: &cargoAux.ID,
+		Activo:  true,
+	}
+	database.Create(&userAux)
+
+	ldfVal := "LDF-INBOUND-999"
+	receptor := db.Receptor{
+		NumeroDocumento: "890116102",
+		Nombre:          "HARINERA PARDO S.A.S.",
+		Activo:          true,
+	}
+	database.Create(&receptor)
+
+	// Factura viene acusada por Inbound (EventoDIAN: ACKNOWLEDGED, sin fila en evento_radian)
+	docCom := db.DocumentoComercial{
+		NumeroDocumento: "SETT-INBOUND",
+		LDF:             &ldfVal,
+		IDReceptor:      receptor.ID,
+		EventoDIAN:      "ACKNOWLEDGED",
+		Activo:          true,
+	}
+	database.Create(&docCom)
+
+	rad := db.DocumentoRadicado{
+		NumeroRadicado:       "RAD-INBOUND",
+		DocumentoComercialID: docCom.ID,
+		EstadoPosesion:       "Completado",
+	}
+	database.Create(&rad)
+
+	// 1. ListByRadicadoID debe reconocer el evento 030
+	evs1, err := svc.ListByRadicadoID(rad.ID)
+	assert.NoError(t, err)
+	assert.Len(t, evs1, 1)
+	assert.Equal(t, "030", evs1[0].CodigoDIAN)
+
+	// 2. No debe permitir emitir 030 nuevamente
+	_, errDuplicado := svc.EmitirEvento(rad.ID, userAux.ID, EmitirEventoDTO{Tipo: "030"})
+	assert.Error(t, errDuplicado)
+	assert.Contains(t, errDuplicado.Error(), "ya fue emitido o registrado previamente")
+
+	// 3. Emitir Recibo de Bienes (032)
+	resp032, err := svc.EmitirEvento(rad.ID, userAux.ID, EmitirEventoDTO{
+		Tipo:        "032",
+		Observacion: "Bienes recibidos a satisfacción",
+	})
+	assert.NoError(t, err)
+	assert.Equal(t, "032", resp032.CodigoDIAN)
+
+	// 4. Tras emitir 032, el evento 030 NO DEBE DESAPARECER. Deben estar 030 y 032!
+	evs2, err := svc.ListByRadicadoID(rad.ID)
+	assert.NoError(t, err)
+	assert.Len(t, evs2, 2)
+	assert.Equal(t, "030", evs2[0].CodigoDIAN)
+	assert.Equal(t, "032", evs2[1].CodigoDIAN)
+
+	// 5. Ahora emitir Aceptación (034)
+	resp034, err := svc.EmitirEvento(rad.ID, userAux.ID, EmitirEventoDTO{
+		Tipo:        "034",
+		Observacion: "Factura aprobada y aceptada",
+	})
+	assert.NoError(t, err)
+	assert.Equal(t, "034", resp034.CodigoDIAN)
+
+	// 6. Lista final debe tener los 3 eventos: 030, 032 y 034
+	evs3, err := svc.ListByRadicadoID(rad.ID)
+	assert.NoError(t, err)
+	assert.Len(t, evs3, 3)
+	assert.Equal(t, "030", evs3[0].CodigoDIAN)
+	assert.Equal(t, "032", evs3[1].CodigoDIAN)
+	assert.Equal(t, "034", evs3[2].CodigoDIAN)
+}
+

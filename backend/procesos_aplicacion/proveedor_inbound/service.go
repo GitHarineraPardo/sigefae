@@ -39,6 +39,8 @@ type SyncStats struct {
 	TotalEncontrados int `json:"total_encontrados"`
 	NuevosProcesados int `json:"nuevos_procesados"`
 	Actualizados     int `json:"actualizados"`
+	NoProcesados     int `json:"no_procesados"`
+	DetallesFallos   []string `json:"detalles_fallos,omitempty"`
 }
 
 // SyncRange sincroniza los documentos recibidos en un rango de fechas dado.
@@ -73,29 +75,35 @@ func (s *Service) SyncRecent(dias int) (SyncStats, error) {
 	if dias <= 0 {
 		dias = 30
 	}
-	end := time.Now()
-	start := end.AddDate(0, 0, -dias)
+	now := time.Now()
+	end := time.Date(now.Year(), now.Month(), now.Day(), 23, 59, 59, 0, now.Location())
+	startDay := end.AddDate(0, 0, -dias)
+	start := time.Date(startDay.Year(), startDay.Month(), startDay.Day(), 0, 0, 0, 0, now.Location())
 	return s.SyncRange(start, end)
 }
 
 // SyncAuto sincroniza de forma inteligente: si existen facturas en la base de datos,
-// busca desde la fecha de la última factura recibida (con 3 días de margen por actualizaciones de eventos).
+// busca desde la última fecha de recepción DIAN (con 3 días de margen por actualizaciones de eventos).
 // Si la base de datos está vacía, sincroniza los últimos 30 días por defecto.
 func (s *Service) SyncAuto() (SyncStats, error) {
+	now := time.Now()
 	var maxDate *time.Time
 	err := s.db.Model(&db.DocumentoComercial{}).
 		Where("ldf IS NOT NULL").
-		Select("MAX(fecha_documento)").
+		Select("MAX(COALESCE(fecha_recepcion_dian, fecha_documento))").
 		Row().
 		Scan(&maxDate)
 
-	if err == nil && maxDate != nil && !maxDate.IsZero() {
+	if err == nil && maxDate != nil && !maxDate.IsZero() && !maxDate.After(now) {
 		start := maxDate.AddDate(0, 0, -3)
 		log.Printf("[Proveedor Inbound] Sincronización automática desde última factura en BD: %s\n", start.Format("2006-01-02"))
-		return s.SyncRange(start, time.Now())
+		return s.SyncRange(start, now)
 	}
 
-	log.Println("[Proveedor Inbound] No se detectaron facturas previas en BD. Sincronizando últimos 30 días.")
+	if maxDate != nil && maxDate.After(now) {
+		log.Printf("[Proveedor Inbound] La última fecha registrada (%s) está en el futuro. Se ignora para evitar un rango vacío.\n", maxDate.Format(time.RFC3339))
+	}
+	log.Println("[Proveedor Inbound] Sincronizando últimos 30 días.")
 	return s.SyncRecent(30)
 }
 
@@ -152,8 +160,10 @@ func (s *Service) syncWindow(startDate, endDate time.Time, stats *SyncStats) err
 
 		if len(itemsPendientes) > 0 {
 			log.Printf("[Proveedor Inbound] Descargando ZIP para %d facturas nuevas...\n", len(itemsPendientes))
-			procesados, err := s.processBatch(itemsPendientes)
+			procesados, noProcesados, detallesFallos, err := s.processBatch(itemsPendientes)
 			stats.NuevosProcesados += procesados
+			stats.NoProcesados += noProcesados
+			stats.DetallesFallos = append(stats.DetallesFallos, detallesFallos...)
 			if err != nil {
 				log.Printf("[Proveedor Inbound] Error procesando lote de %d facturas: %v\n", len(itemsPendientes), err)
 			}
@@ -166,9 +176,12 @@ func (s *Service) syncWindow(startDate, endDate time.Time, stats *SyncStats) err
 }
 
 // processBatch descarga los ZIPs en bloques de hasta 15 documentos y los procesa
-func (s *Service) processBatch(items []ItemDocumento) (int, error) {
+func (s *Service) processBatch(items []ItemDocumento) (int, int, []string, error) {
 	batchSize := 15
 	totalProcesados := 0
+	totalNoProcesados := 0
+	var detallesFallos []string
+	var lastErr error
 	for i := 0; i < len(items); i += batchSize {
 		end := i + batchSize
 		if end > len(items) {
@@ -186,16 +199,47 @@ func (s *Service) processBatch(items []ItemDocumento) (int, error) {
 		zipBytes, err := s.client.DownloadZip(ldfList)
 		if err != nil {
 			log.Printf("[Proveedor Inbound] Error descargando ZIP para lote (%d LDFs): %v\n", len(ldfList), err)
+			lastErr = err
+			for _, item := range subLote {
+				retryZip, retryErr := s.client.DownloadZip([]string{item.LDF})
+				if retryErr != nil {
+					totalNoProcesados++
+					detallesFallos = append(detallesFallos, fmt.Sprintf("%s: descarga ZIP falló: %v", item.NumeroFactura, retryErr))
+					log.Printf("[Proveedor Inbound] Error reintentando factura %s: %v\n", item.NumeroFactura, retryErr)
+					continue
+				}
+				retryMap := map[string]ItemDocumento{item.LDF: item}
+				n, processErr := s.extractAndProcessZip(retryZip, retryMap)
+				totalProcesados += n
+				if processErr != nil || n == 0 {
+					totalNoProcesados++
+					if processErr != nil {
+						lastErr = processErr
+						detallesFallos = append(detallesFallos, fmt.Sprintf("%s: procesamiento falló: %v", item.NumeroFactura, processErr))
+					} else {
+						detallesFallos = append(detallesFallos, fmt.Sprintf("%s: el ZIP no contenía un XML procesable", item.NumeroFactura))
+					}
+				}
+			}
+			if len(detallesFallos) > 0 {
+				log.Printf("[Proveedor Inbound] Detalles de fallos: %s\n", strings.Join(detallesFallos, " | "))
+			}
 			continue
 		}
 
 		n, err := s.extractAndProcessZip(zipBytes, itemMap)
 		totalProcesados += n
 		if err != nil {
+			lastErr = err
+			totalNoProcesados += len(subLote) - n
+			detallesFallos = append(detallesFallos, fmt.Sprintf("Lote desde %s: %v", subLote[0].NumeroFactura, err))
 			log.Printf("[Proveedor Inbound] Error extrayendo lote ZIP: %v\n", err)
 		}
 	}
-	return totalProcesados, nil
+	if len(detallesFallos) > 0 {
+		lastErr = fmt.Errorf("%s", strings.Join(detallesFallos, " | "))
+	}
+	return totalProcesados, totalNoProcesados, detallesFallos, lastErr
 }
 
 // extractAndProcessZip descomprime el ZIP en memoria, guarda los archivos en storage y registra los documentos comerciales

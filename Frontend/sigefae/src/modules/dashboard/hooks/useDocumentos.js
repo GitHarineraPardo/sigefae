@@ -238,6 +238,9 @@ export function useDocumentos(obtenerToken, activeTab) {
       const listRes = await fetch(`${API}/documentocomercial/pendientes?_t=${Date.now()}`, {
         headers: { Authorization: `Bearer ${obtenerToken()}` },
       });
+      if (!listRes.ok) {
+        throw new Error(`No se pudieron recargar las facturas locales (${listRes.status})`);
+      }
       const listData = await listRes.json();
       if (Array.isArray(listData)) setDocumentos(listData);
     } catch (err) {

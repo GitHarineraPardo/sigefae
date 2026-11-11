@@ -3,6 +3,8 @@ package evento_dian
 import (
 	"errors"
 	"fmt"
+	"sort"
+	"strconv"
 	"strings"
 	"time"
 
@@ -31,6 +33,10 @@ func (s *Service) ListByRadicadoID(radicadoID uint) ([]Response, error) {
 		return nil, errors.New("radicado no encontrado")
 	}
 
+	if rad.DocumentoComercial == nil {
+		return []Response{}, nil
+	}
+
 	var eventos []db.EventoRadian
 	if err := s.db.
 		Preload("Usuario").
@@ -40,15 +46,140 @@ func (s *Service) ListByRadicadoID(radicadoID uint) ([]Response, error) {
 		return nil, err
 	}
 
-	res := make([]Response, 0, len(eventos)+1)
-	hasAcuse := false
+	has030 := false
+	has032 := false
+	has034 := false
+	has031 := false
+
 	for _, e := range eventos {
 		if e.CodigoDIAN == "030" || strings.EqualFold(e.TipoEvento, "ACKNOWLEDGED") {
-			hasAcuse = true
+			has030 = true
 		}
-		userName := "Sistema"
+		if e.CodigoDIAN == "032" || strings.EqualFold(e.TipoEvento, "RECEIVEDGOODS") {
+			has032 = true
+		}
+		if e.CodigoDIAN == "034" || strings.EqualFold(e.TipoEvento, "ACCEPTED") {
+			has034 = true
+		}
+		if e.CodigoDIAN == "031" || strings.EqualFold(e.TipoEvento, "REJECTED") {
+			has031 = true
+		}
+	}
+
+	docEvento := strings.ToUpper(strings.TrimSpace(rad.DocumentoComercial.EventoDIAN))
+	fechaRecepcion := rad.DocumentoComercial.CreatedAt
+	if rad.DocumentoComercial.FechaRecepcionDIAN != nil && !rad.DocumentoComercial.FechaRecepcionDIAN.IsZero() {
+		fechaRecepcion = *rad.DocumentoComercial.FechaRecepcionDIAN
+	}
+
+	// Inferencia de eventos provenientes del Proveedor Tecnológico (Inbound) o requeridos por RADIAN:
+	// Si el documento comercial indica un evento o si ya se emitieron eventos posteriores en el sistema:
+	debeTener030 := has030 || has032 || has034 || has031 ||
+		docEvento == "ACKNOWLEDGED" || docEvento == "RECEIVEDGOODS" || docEvento == "ACCEPTED" || docEvento == "REJECTED"
+	debeTener032 := has032 || has034 || has031 ||
+		docEvento == "RECEIVEDGOODS" || docEvento == "ACCEPTED" || docEvento == "REJECTED"
+	debeTener034 := has034 || docEvento == "ACCEPTED"
+	debeTener031 := has031 || docEvento == "REJECTED"
+
+	// Auto-sanar / persistir en la tabla evento_radian los eventos previos del proveedor tecnológico
+	// para que queden guardados de forma inmutable y con trazabilidad
+	if debeTener030 && !has030 {
+		ev030 := db.EventoRadian{
+			DocumentoComercialID: rad.DocumentoComercial.ID,
+			TipoEvento:           "ACKNOWLEDGED",
+			CodigoDIAN:           "030",
+			FechaEnvio:           fechaRecepcion,
+			Exitoso:              true,
+			MensajeRespuesta:     "Acuse registrado por Buzón Inbound / Proveedor Tecnológico",
+			Observacion:          "Acuse de recibo generado automáticamente al recibir la factura",
+			CreatedAt:            fechaRecepcion,
+		}
+		if err := s.db.Create(&ev030).Error; err == nil {
+			eventos = append([]db.EventoRadian{ev030}, eventos...)
+			has030 = true
+		}
+	}
+
+	if debeTener032 && !has032 {
+		ev032 := db.EventoRadian{
+			DocumentoComercialID: rad.DocumentoComercial.ID,
+			TipoEvento:           "RECEIVEDGOODS",
+			CodigoDIAN:           "032",
+			FechaEnvio:           fechaRecepcion,
+			Exitoso:              true,
+			MensajeRespuesta:     "Recibo de bienes registrado por Proveedor Tecnológico",
+			Observacion:          "Bienes o servicios recibidos según registro del proveedor tecnológico",
+			CreatedAt:            fechaRecepcion,
+		}
+		if err := s.db.Create(&ev032).Error; err == nil {
+			eventos = append(eventos, ev032)
+			has032 = true
+		}
+	}
+
+	if debeTener034 && !has034 {
+		ev034 := db.EventoRadian{
+			DocumentoComercialID: rad.DocumentoComercial.ID,
+			TipoEvento:           "ACCEPTED",
+			CodigoDIAN:           "034",
+			FechaEnvio:           fechaRecepcion,
+			Exitoso:              true,
+			MensajeRespuesta:     "Aceptación expresa registrada por Proveedor Tecnológico",
+			Observacion:          "Factura aceptada según registro del proveedor tecnológico",
+			CreatedAt:            fechaRecepcion,
+		}
+		if err := s.db.Create(&ev034).Error; err == nil {
+			eventos = append(eventos, ev034)
+			has034 = true
+		}
+	}
+
+	if debeTener031 && !has031 {
+		ev031 := db.EventoRadian{
+			DocumentoComercialID: rad.DocumentoComercial.ID,
+			TipoEvento:           "REJECTED",
+			CodigoDIAN:           "031",
+			FechaEnvio:           fechaRecepcion,
+			Exitoso:              true,
+			MensajeRespuesta:     "Reclamo registrado por Proveedor Tecnológico",
+			Observacion:          "Reclamo según registro del proveedor tecnológico",
+			CreatedAt:            fechaRecepcion,
+		}
+		if err := s.db.Create(&ev031).Error; err == nil {
+			eventos = append(eventos, ev031)
+			has031 = true
+		}
+	}
+
+	// Ordenar eventos según secuencia lógica DIAN y cronología
+	sort.SliceStable(eventos, func(i, j int) bool {
+		peso := func(cod string) int {
+			switch cod {
+			case "030":
+				return 1
+			case "032":
+				return 2
+			case "034":
+				return 3
+			case "031":
+				return 4
+			default:
+				return 5
+			}
+		}
+		if peso(eventos[i].CodigoDIAN) != peso(eventos[j].CodigoDIAN) {
+			return peso(eventos[i].CodigoDIAN) < peso(eventos[j].CodigoDIAN)
+		}
+		return eventos[i].CreatedAt.Before(eventos[j].CreatedAt)
+	})
+
+	res := make([]Response, 0, len(eventos))
+	for _, e := range eventos {
+		userName := "Buzón Inbound (Automático)"
 		if e.Usuario != nil && e.Usuario.Nombre != "" {
 			userName = e.Usuario.Nombre
+		} else if e.UsuarioID != nil {
+			userName = "Usuario #" + strconv.FormatUint(uint64(*e.UsuarioID), 10)
 		}
 		res = append(res, Response{
 			ID:                   e.ID,
@@ -63,27 +194,6 @@ func (s *Service) ListByRadicadoID(radicadoID uint) ([]Response, error) {
 			Observacion:          e.Observacion,
 			CreatedAt:            e.CreatedAt,
 		})
-	}
-
-	// Si no hay evento 030 manual pero la factura ya vino acusada por el proveedor (buzón Inbound)
-	if !hasAcuse && rad.DocumentoComercial != nil && strings.EqualFold(strings.TrimSpace(rad.DocumentoComercial.EventoDIAN), "ACKNOWLEDGED") {
-		fechaEnvio := rad.DocumentoComercial.CreatedAt
-		if rad.DocumentoComercial.FechaRecepcionDIAN != nil {
-			fechaEnvio = *rad.DocumentoComercial.FechaRecepcionDIAN
-		}
-		acuseAuto := Response{
-			ID:                   0,
-			DocumentoComercialID: rad.DocumentoComercial.ID,
-			TipoEvento:           "ACKNOWLEDGED",
-			CodigoDIAN:           "030",
-			FechaEnvio:           fechaEnvio,
-			Exitoso:              true,
-			MensajeRespuesta:     "Acuse registrado por Buzón Inbound",
-			UsuarioNombre:        "Buzón Inbound (Automático)",
-			Observacion:          "Acuse de recibo generado por el proveedor tecnológico al recibir la factura",
-			CreatedAt:            fechaEnvio,
-		}
-		res = append([]Response{acuseAuto}, res...)
 	}
 
 	return res, nil
@@ -160,30 +270,80 @@ func (s *Service) EmitirEvento(radicadoID uint, usuarioID uint, req EmitirEvento
 	var eventosPrevios []db.EventoRadian
 	s.db.Where("documento_comercial_id = ?", rad.DocumentoComercialID).Find(&eventosPrevios)
 
+	docEvento := ""
+	if rad.DocumentoComercial != nil {
+		docEvento = strings.ToUpper(strings.TrimSpace(rad.DocumentoComercial.EventoDIAN))
+	}
+
+	tiene030 := docEvento == "ACKNOWLEDGED" || docEvento == "RECEIVEDGOODS" || docEvento == "ACCEPTED" || docEvento == "REJECTED"
+	tiene032 := docEvento == "RECEIVEDGOODS" || docEvento == "ACCEPTED" || docEvento == "REJECTED"
+	tiene034 := docEvento == "ACCEPTED"
+	tiene031 := docEvento == "REJECTED"
+
 	for _, ep := range eventosPrevios {
-		if ep.CodigoDIAN == codigoDIAN {
-			return nil, fmt.Errorf("el evento %s (%s) ya fue emitido previamente para esta factura", codigoDIAN, tipoEvento)
+		switch ep.CodigoDIAN {
+		case "030":
+			tiene030 = true
+		case "032":
+			tiene030 = true
+			tiene032 = true
+		case "034":
+			tiene030 = true
+			tiene032 = true
+			tiene034 = true
+		case "031":
+			tiene030 = true
+			tiene032 = true
+			tiene031 = true
+		}
+		if strings.EqualFold(ep.TipoEvento, "ACKNOWLEDGED") {
+			tiene030 = true
+		} else if strings.EqualFold(ep.TipoEvento, "RECEIVEDGOODS") {
+			tiene030 = true
+			tiene032 = true
+		} else if strings.EqualFold(ep.TipoEvento, "ACCEPTED") {
+			tiene030 = true
+			tiene032 = true
+			tiene034 = true
+		} else if strings.EqualFold(ep.TipoEvento, "REJECTED") {
+			tiene030 = true
+			tiene032 = true
+			tiene031 = true
 		}
 	}
 
-	tieneAcuse := rad.DocumentoComercial != nil && strings.EqualFold(strings.TrimSpace(rad.DocumentoComercial.EventoDIAN), "ACKNOWLEDGED")
-	tieneReciboBienes := rad.DocumentoComercial != nil && strings.EqualFold(strings.TrimSpace(rad.DocumentoComercial.EventoDIAN), "RECEIVEDGOODS")
-
-	for _, ep := range eventosPrevios {
-		if ep.CodigoDIAN == "030" || strings.EqualFold(ep.TipoEvento, "ACKNOWLEDGED") {
-			tieneAcuse = true
+	switch codigoDIAN {
+	case "030":
+		if tiene030 {
+			return nil, fmt.Errorf("el evento 030 (ACKNOWLEDGED) ya fue emitido o registrado previamente para esta factura")
 		}
-		if ep.CodigoDIAN == "032" || strings.EqualFold(ep.TipoEvento, "RECEIVEDGOODS") {
-			tieneReciboBienes = true
+	case "032":
+		if tiene032 {
+			return nil, fmt.Errorf("el evento 032 (RECEIVEDGOODS) ya fue emitido o registrado previamente para esta factura")
 		}
-	}
-
-	if codigoDIAN == "032" && !tieneAcuse {
-		return nil, errors.New("no es posible emitir el Recibo de Bienes o Servicios (032) sin haber registrado previamente el Acuse de Recibo (030)")
-	}
-
-	if (codigoDIAN == "034" || codigoDIAN == "031") && !tieneReciboBienes {
-		return nil, errors.New("no es posible emitir la Aceptación (034) o Reclamo (031) sin haber registrado previamente el Recibo de Bienes o Servicios (032)")
+		if !tiene030 {
+			return nil, errors.New("no es posible emitir el Recibo de Bienes o Servicios (032) sin haber registrado previamente el Acuse de Recibo (030)")
+		}
+	case "034":
+		if tiene034 {
+			return nil, fmt.Errorf("el evento 034 (ACCEPTED) ya fue emitido previamente para esta factura")
+		}
+		if tiene031 {
+			return nil, errors.New("la factura ya cuenta con un Reclamo (031); no es posible emitir Aceptación")
+		}
+		if !tiene032 {
+			return nil, errors.New("no es posible emitir la Aceptación (034) sin haber registrado previamente el Recibo de Bienes o Servicios (032)")
+		}
+	case "031":
+		if tiene031 {
+			return nil, fmt.Errorf("el evento 031 (REJECTED) ya fue emitido previamente para esta factura")
+		}
+		if tiene034 {
+			return nil, errors.New("la factura ya cuenta con Aceptación (034); no es posible emitir Reclamo")
+		}
+		if !tiene032 {
+			return nil, errors.New("no es posible emitir el Reclamo (031) sin haber registrado previamente el Recibo de Bienes o Servicios (032)")
+		}
 	}
 
 	// 4. Datos del receptor
@@ -325,6 +485,54 @@ func (s *Service) EmitirEvento(radicadoID uint, usuarioID uint, req EmitirEvento
 
 	if err := s.db.Create(&eventoRadian).Error; err != nil {
 		return nil, fmt.Errorf("error registrando auditoría del evento: %w", err)
+	}
+
+	// Si se emitió 032, 034 o 031 y el acuse (030) previo no estaba registrado en evento_radian,
+	// guardarlo para preservar la integridad histórica y auditoría permanente.
+	if codigoDIAN != "030" {
+		var count030 int64
+		s.db.Model(&db.EventoRadian{}).
+			Where("documento_comercial_id = ? AND (codigo_dian = '030' OR tipo_evento = 'ACKNOWLEDGED')", rad.DocumentoComercial.ID).
+			Count(&count030)
+		if count030 == 0 {
+			fechaAcuse := rad.DocumentoComercial.CreatedAt
+			if rad.DocumentoComercial.FechaRecepcionDIAN != nil && !rad.DocumentoComercial.FechaRecepcionDIAN.IsZero() {
+				fechaAcuse = *rad.DocumentoComercial.FechaRecepcionDIAN
+			}
+			_ = s.db.Create(&db.EventoRadian{
+				DocumentoComercialID: rad.DocumentoComercial.ID,
+				TipoEvento:           "ACKNOWLEDGED",
+				CodigoDIAN:           "030",
+				FechaEnvio:           fechaAcuse,
+				Exitoso:              true,
+				MensajeRespuesta:     "Acuse registrado por Buzón Inbound / Proveedor Tecnológico",
+				Observacion:          "Acuse de recibo generado automáticamente al recibir la factura",
+				CreatedAt:            fechaAcuse,
+			}).Error
+		}
+	}
+
+	if codigoDIAN == "034" || codigoDIAN == "031" {
+		var count032 int64
+		s.db.Model(&db.EventoRadian{}).
+			Where("documento_comercial_id = ? AND (codigo_dian = '032' OR tipo_evento = 'RECEIVEDGOODS')", rad.DocumentoComercial.ID).
+			Count(&count032)
+		if count032 == 0 {
+			fechaRecibo := rad.DocumentoComercial.CreatedAt
+			if rad.DocumentoComercial.FechaRecepcionDIAN != nil && !rad.DocumentoComercial.FechaRecepcionDIAN.IsZero() {
+				fechaRecibo = *rad.DocumentoComercial.FechaRecepcionDIAN
+			}
+			_ = s.db.Create(&db.EventoRadian{
+				DocumentoComercialID: rad.DocumentoComercial.ID,
+				TipoEvento:           "RECEIVEDGOODS",
+				CodigoDIAN:           "032",
+				FechaEnvio:           fechaRecibo,
+				Exitoso:              true,
+				MensajeRespuesta:     "Recibo de bienes registrado por Proveedor Tecnológico",
+				Observacion:          "Bienes o servicios recibidos según registro del proveedor tecnológico",
+				CreatedAt:            fechaRecibo,
+			}).Error
+		}
 	}
 
 	// Actualizar evento_dian en el Documento Comercial
