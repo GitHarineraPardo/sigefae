@@ -76,3 +76,163 @@ func TestNormalizarNITIgnoraSeparadores(t *testing.T) {
 		t.Fatalf("NormalizarNIT() = %q, esperaba vacío", got)
 	}
 }
+
+func TestRadicarDocumento_RespetarNormasEnBlanco(t *testing.T) {
+	database, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{
+		DisableForeignKeyConstraintWhenMigrating: true,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	err = database.AutoMigrate(
+		&db.DocumentoComercial{},
+		&db.DocumentoRadicado{},
+		&db.TipoRadicacion{},
+		&db.Ruta{},
+		&db.PasoRuta{},
+		&db.MetodoPago{},
+		&db.EstadoDocumentoRadicado{},
+		&db.EstadoTarea{},
+		&db.Tarea{},
+		&db.CodigoQr{},
+		&db.Trazabilidad{},
+		&db.ProveedorNormaReparto{},
+		&db.RadicadoNormaReparto{},
+		&db.NormaReparto{},
+		&db.RadicadoActivoFijo{},
+		&db.SalarioMinimo{},
+		&db.ReglaMontoRuta{},
+		&db.ReglaNITRuta{},
+		&db.Proveedor{},
+		&db.Usuario{},
+		&db.Cargo{},
+		&db.Archivo{},
+		&db.ArchivoOrigen{},
+		&db.Receptor{},
+		&db.Area{},
+		&db.Moneda{},
+		&db.DetalleDocumentoComercial{},
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// 1. Fixtures
+	prov := db.Proveedor{ID: 10, RazonSocial: "Proveedor Test", NumeroDocumento: "900123456"}
+	database.Create(&prov)
+
+	docCom := db.DocumentoComercial{
+		ID:              1,
+		NumeroDocumento: "FACT-123",
+		IDProveedor:     prov.ID,
+		Total:           1000000,
+		Subtotal:        840000,
+	}
+	database.Create(&docCom)
+
+	tipoRad := db.TipoRadicacion{ID: 1, Nombre: "General"}
+	database.Create(&tipoRad)
+
+	ruta := db.Ruta{ID: 1, Nombre: "Ruta Compras"}
+	database.Create(&ruta)
+
+	metodoPago := db.MetodoPago{ID: 1, Nombre: "Transferencia"}
+	database.Create(&metodoPago)
+
+	estadoRad := db.EstadoDocumentoRadicado{ID: 1, Nombre: "Radicado"}
+	database.Create(&estadoRad)
+
+	estadoTar1 := db.EstadoTarea{ID: 1, Nombre: "Pendiente"}
+	database.Create(&estadoTar1)
+	estadoTar2 := db.EstadoTarea{ID: 2, Nombre: "En Proceso"}
+	database.Create(&estadoTar2)
+
+	cargoOriente := db.Cargo{ID: 1, Nombre: "Auxiliar Admon Oriente"}
+	database.Create(&cargoOriente)
+
+	pasoRuta := db.PasoRuta{
+		ID:     1,
+		RutaID: ruta.ID,
+		Nombre: "Paso 1",
+		Orden:  1,
+		Activo: true,
+	}
+	database.Create(&pasoRuta)
+
+	// Guardar normas por defecto del proveedor para esta ruta
+	pnr := db.ProveedorNormaReparto{
+		ProveedorID:    prov.ID,
+		RutaID:         ruta.ID,
+		NormaRepartoID: 55,
+		Porcentaje:     100,
+	}
+	database.Create(&pnr)
+
+	svc := New(database)
+
+	// 2. Radicar con NormasReparto vacío (el usuario eligió "dejar en blanco")
+	dtoEnBlanco := CreateDTO{
+		NumeroRadicado:       "RAD-TEST-001",
+		DocumentoComercialID: docCom.ID,
+		TipoRadicacionID:     tipoRad.ID,
+		RutaID:               ruta.ID,
+		MetodoPagoID:         metodoPago.ID,
+		NormasReparto:        []NormaRepartoInputDTO{}, // En blanco
+	}
+
+	radicado, err := svc.Create(dtoEnBlanco, 1)
+	if err != nil {
+		t.Fatalf("error creando radicado: %v", err)
+	}
+
+	// 3. Verificar que NO se crearon normas de reparto en el radicado
+	var normasEnBD []db.RadicadoNormaReparto
+	database.Where("documento_radicado_id = ?", radicado.ID).Find(&normasEnBD)
+
+	if len(normasEnBD) != 0 {
+		t.Fatalf("se crearon %d normas de reparto; se esperaba 0 porque el usuario eligió dejar en blanco", len(normasEnBD))
+	}
+
+	// 4. Radicar con NormasReparto explicitas (el usuario eligió "Cargar automáticamente" o configuró normas)
+	docCom2 := db.DocumentoComercial{
+		ID:              2,
+		NumeroDocumento: "FACT-124",
+		IDProveedor:     prov.ID,
+		Total:           2000000,
+		Subtotal:        1680000,
+	}
+	database.Create(&docCom2)
+
+	dtoConNormas := CreateDTO{
+		NumeroRadicado:       "RAD-TEST-002",
+		DocumentoComercialID: docCom2.ID,
+		TipoRadicacionID:     tipoRad.ID,
+		RutaID:               ruta.ID,
+		MetodoPagoID:         metodoPago.ID,
+		NormasReparto: []NormaRepartoInputDTO{
+			{
+				NormaRepartoID: 55,
+				Porcentaje:     100,
+				Proyecto:       "PROY-1",
+			},
+		},
+	}
+
+	radicado2, err := svc.Create(dtoConNormas, 1)
+	if err != nil {
+		t.Fatalf("error creando segundo radicado: %v", err)
+	}
+
+	var normasGuardadas []db.RadicadoNormaReparto
+	database.Where("documento_radicado_id = ?", radicado2.ID).Find(&normasGuardadas)
+
+	if len(normasGuardadas) != 1 {
+		t.Fatalf("se crearon %d normas; se esperaba 1", len(normasGuardadas))
+	}
+	if normasGuardadas[0].NormaRepartoID != 55 || normasGuardadas[0].Porcentaje != 100 {
+		t.Fatalf("norma guardada no coincide: %+v", normasGuardadas[0])
+	}
+}
+
+

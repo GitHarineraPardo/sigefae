@@ -270,7 +270,14 @@ export default function ProcesosLogistica() {
         enviandoComentario={flujoHook.enviandoComentario}
         handleEnviarComentario={flujoHook.handleEnviarComentario}
         generandoPdf={pdfExpedienteHook.generandoPdf}
-        handleDescargarExpediente={(rad) => pdfExpedienteHook.handleDescargarExpediente(rad, flujoHook.tareasFlujo, flujoHook.historialTrazabilidad, API)}
+        handleDescargarExpediente={(rad, flujo, traz, evDian, actFij) => pdfExpedienteHook.handleDescargarExpediente(
+          rad,
+          flujo || flujoHook.tareasFlujo,
+          traz || flujoHook.historialTrazabilidad,
+          API,
+          evDian || saiaHook.eventosDian,
+          actFij || flujoHook.activosFijosRadicado
+        )}
         handleVerAnexo={anexosHook.handleVerAnexo}
         handleDescargarAnexo={anexosHook.handleDescargarAnexo}
         handleBorrarAnexo={anexosHook.handleBorrarAnexo}

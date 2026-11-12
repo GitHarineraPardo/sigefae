@@ -193,7 +193,7 @@ func (s *Service) Create(dto CreateDTO, usuarioID uint) (*db.DocumentoRadicado, 
 			return fmt.Errorf("la suma de normas de reparto (%.2f%%) y activos fijos (%.2f%%) no puede superar el 100%%", totalPctNormas, totalPctActivos)
 		}
 
-		// ── 12. Crear normas de reparto (priorizar DTO, si no, buscar en proveedor) ──
+		// ── 12. Crear normas de reparto (únicamente si fueron seleccionadas o asignadas en DTO) ──
 		if len(dto.NormasReparto) > 0 {
 			for _, n := range dto.NormasReparto {
 				nr := db.RadicadoNormaReparto{
@@ -206,24 +206,6 @@ func (s *Service) Create(dto CreateDTO, usuarioID uint) (*db.DocumentoRadicado, 
 				}
 				if err := tx.Create(&nr).Error; err != nil {
 					return err
-				}
-			}
-		} else {
-			// Buscar normas por defecto del proveedor para esta ruta
-			if docCom.IDProveedor != 0 {
-				var proveedorNormas []db.ProveedorNormaReparto
-				if err := tx.Where("proveedor_id = ? AND ruta_id = ?", docCom.IDProveedor, dto.RutaID).Find(&proveedorNormas).Error; err == nil && len(proveedorNormas) > 0 {
-					for _, pn := range proveedorNormas {
-						nr := db.RadicadoNormaReparto{
-							DocumentoRadicadoID: radicado.ID,
-							NormaRepartoID:      pn.NormaRepartoID,
-							Porcentaje:          pn.Porcentaje,
-							CreadoPorID:         usuarioID,
-						}
-						if err := tx.Create(&nr).Error; err != nil {
-							return err
-						}
-					}
 				}
 			}
 		}
@@ -274,6 +256,7 @@ func (s *Service) Create(dto CreateDTO, usuarioID uint) (*db.DocumentoRadicado, 
 		Preload("Archivos.Origen").
 		Preload("NormasReparto").
 		Preload("NormasReparto.NormaReparto").
+		Preload("ActivosFijos").
 		First(&radicado, radicado.ID).Error; err != nil {
 		return nil, err
 	}
@@ -298,6 +281,7 @@ func (s *Service) List() ([]db.DocumentoRadicado, error) {
 		Preload("Qr").
 		Preload("NormasReparto").
 		Preload("NormasReparto.NormaReparto").
+		Preload("ActivosFijos").
 		Order("fecha_radicacion DESC").
 		Find(&radicados).Error; err != nil {
 		return nil, err
@@ -323,6 +307,7 @@ func (s *Service) GetByID(id uint) (*db.DocumentoRadicado, error) {
 		Preload("Qr").
 		Preload("NormasReparto").
 		Preload("NormasReparto.NormaReparto").
+		Preload("ActivosFijos").
 		First(&radicado, id).Error; err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return nil, errors.New("documento radicado no encontrado")

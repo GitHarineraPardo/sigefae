@@ -364,7 +364,7 @@ export default function RenderSaiaModal({
               {saiaActiveTab === 'acciones' && (
                 <div className="doc-section" style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
                   <h4><i className="fa-solid fa-bolt"></i> Acciones</h4>
-                  <button className="doc-btn doc-btn-secondary" onClick={() => handleDescargarExpediente(saiaRadicado, tareasFlujo, historialTrazabilidad)} disabled={generandoPdf}>
+                  <button className="doc-btn doc-btn-secondary" onClick={() => handleDescargarExpediente(saiaRadicado, tareasFlujo, historialTrazabilidad, eventosDian, activosFijosRadicado)} disabled={generandoPdf}>
                     <i className={`fa-solid ${generandoPdf ? 'fa-spinner fa-spin' : 'fa-file-pdf'}`}></i> {generandoPdf ? 'Generando...' : 'Descargar Expediente'}
                   </button>
                   {anexoActual && !readOnly && (

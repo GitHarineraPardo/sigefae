@@ -186,12 +186,49 @@ export default function ModalRadicar({
 
           {usarNormasPredeterminadas === true && (
             <div className="modal-field" style={{
-              padding: "8px 12px", borderRadius: 8, marginBottom: "14px",
+              padding: "9px 14px", borderRadius: 8, marginBottom: "14px",
               background: "#d1fae5", border: "1px solid #10b981",
-              color: "#065f46", fontSize: 12.5, display: "flex", alignItems: "center", gap: 8
+              color: "#065f46", fontSize: 12.5, display: "flex", alignItems: "center", justifyContent: "space-between"
             }}>
-              <i className="fa-solid fa-check-circle"></i>
-              <span>Normas de reparto cargadas automáticamente.</span>
+              <span style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                <i className="fa-solid fa-check-circle" style={{ color: "#059669", fontSize: 15 }}></i>
+                <span>Normas de reparto predeterminadas cargadas ({radicarForm.normas_reparto?.length}).</span>
+              </span>
+              <button
+                type="button"
+                onClick={rechazarNormasPredeterminadas}
+                style={{
+                  background: "none", border: "none", color: "#047857",
+                  fontWeight: 600, cursor: "pointer", fontSize: "11.5px", textDecoration: "underline"
+                }}
+                title="Quitar normas y dejar en blanco"
+              >
+                Limpiar y dejar en blanco
+              </button>
+            </div>
+          )}
+
+          {usarNormasPredeterminadas === false && (
+            <div className="modal-field" style={{
+              padding: "9px 14px", borderRadius: 8, marginBottom: "14px",
+              background: "#f1f5f9", border: "1px solid #cbd5e1",
+              color: "#475569", fontSize: 12.5, display: "flex", alignItems: "center", justifyContent: "space-between"
+            }}>
+              <span style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                <i className="fa-solid fa-circle-info" style={{ color: "#64748b", fontSize: 15 }}></i>
+                <span>Has elegido <strong>dejar en blanco</strong> (se radicará sin normas de reparto).</span>
+              </span>
+              <button
+                type="button"
+                onClick={aceptarNormasPredeterminadas}
+                style={{
+                  background: "none", border: "none", color: "var(--pardo-blue)",
+                  fontWeight: 600, cursor: "pointer", fontSize: "11.5px", textDecoration: "underline"
+                }}
+                title="Cargar las normas predeterminadas de este proveedor"
+              >
+                Cargar normas ahora
+              </button>
             </div>
           )}
 
